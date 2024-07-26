@@ -3,8 +3,6 @@ from scipy import interpolate
 import matplotlib.pyplot as plt
 import random
 
-# TODO: Nの数はあとでちゃんと考える
-
 # IFFT/FFTの回転因子の数
 N = 256
 # OFDMの周波数帯域は1~6kHz
