@@ -128,15 +128,16 @@ class OFDM_Modulation:
         return t, x, ifft_t, ifft_x
 
 
-original_data = np.array([], dtype=np.int64)
-for i in range(12):
-    # original_data = np.append(original_data, ord("A") + i)
-    original_data = np.append(original_data, random.randint(0, 255))
-print(original_data)
-ofdm_mod = OFDM_Modulation()
-t, x, ifft_t, ifft_x = ofdm_mod.calc(original_data)
-fig = plt.figure()
-# plt.plot(ifft_t, ifft_x)
-# plt.figure()
-plt.plot(t, x)
-plt.show()
+if __name__ == "__main__":
+    original_data = np.array([], dtype=np.int64)
+    for i in range(12):
+        # original_data = np.append(original_data, ord("A") + i)
+        original_data = np.append(original_data, random.randint(0, 255))
+    print(original_data)
+    ofdm_mod = OFDM_Modulation()
+    t, x, ifft_t, ifft_x = ofdm_mod.calc(original_data)
+    fig = plt.figure()
+    # plt.plot(ifft_t, ifft_x)
+    # plt.figure()
+    plt.plot(t, x)
+    plt.show()
