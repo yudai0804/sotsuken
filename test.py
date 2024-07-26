@@ -6,7 +6,6 @@ import random
 # TODO: Nの数はあとでちゃんと考える
 
 # IFFT/FFTの回転因子の数
-# N = 256
 N = 256
 # OFDMの周波数帯域は1~6kHz
 # OFDMの下限
@@ -82,7 +81,11 @@ def create_spectrum_array(bpsk_phase: np.ndarray) -> np.ndarray:
             A[i] = 1
             phase[i] = bpsk_phase[j]
             j += 1
-    X = A * np.exp(1j * (2 * np.pi * f + phase) / N)
+    X = A * np.exp(1j * phase)
+    # for i in range(all_subcarrire_number):
+    # print(
+    # f"{i}:A={A[i]},f={f[i]},θ={phase[i]},Re={X[i].real:.3f},Im={X[i].imag:.3f}"
+    # )
     return X
 
 
