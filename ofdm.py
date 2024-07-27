@@ -1,32 +1,39 @@
 import numpy as np
 from scipy import interpolate
+from scipy import signal
 import matplotlib.pyplot as plt
 import random
+import cmath
 
 # IFFT/FFTの回転因子の数
 N = 256
 # OFDMの周波数帯域は1~6kHz
-# OFDMの下限
+# OFDMの下限[Hz]
 SUBCARRIER_FREQUENCY_MIN = 1000
-# OFDMの上限
+# OFDMの上限[Hz]
 SUBCARRIER_FREQUENCY_MAX = 6000
 # サブキャリア数
 SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL = 96
-# サブキャリア間隔
+# サブキャリア間隔[Hz]
+# 変調に用いる情報であって、復調時はサンプリング周波数とNでサブキャリア間隔が決まるので注意
 SUBCARRIER_INTERVAL = 50
 
-# キャリア周波数
+# キャリア周波数[Hz]
 # 値は仮
-CARRIER_FREQUENCY = 1e6
+CARRIER_FREQUENCY = 1e5
 
-# パイロット信号の周波数
+# パイロット信号の周波数[Hz]
 PILOT_SIGNAL_FREQUENCY = [1000, 1050, 2700, 4350, 6000]
-# パイロット信号の数
+# パイロット信号の数[Hz]
 PILOT_SIGNAL_NUMBER = len(PILOT_SIGNAL_FREQUENCY)
 # パイロット信号の振幅
 PILOT_SIGNAL_AMPLITUDE = 2
-# パイロット信号の位相
+# パイロット信号の位相[rad]
 PILOT_SIGNAL_PHASE = 0
+
+SAMPLING_FREQUENCY = 12800
+
+fs = 1e6
 
 
 class OFDM_Modulation:
@@ -79,16 +86,14 @@ class OFDM_Modulation:
                 phase[i] = bpsk_phase[j]
                 j += 1
         X = A * np.exp(1j * phase)
-        # for i in range(all_subcarrire_number):
-        # print(
-        # f"{i}:A={A[i]},f={f[i]},θ={phase[i]},Re={X[i].real:.3f},Im={X[i].imag:.3f}"
-        # )
         return X
 
     def __ifft(self, X: np.ndarray) -> np.ndarray:
         """
         返り値はt,x
+        ただし、tは実際の時間ではなくて0~N-1なので注意。
         """
+        # TODO: 返り値の時刻データが美しくないので後で直す。あと、復調のプログラムとの対象性がない
         x = np.fft.ifft(X, N)
         return np.arange(N), x
 
@@ -97,16 +102,15 @@ class OFDM_Modulation:
         返り値はt,x
         """
         fc = CARRIER_FREQUENCY
-        t = np.linspace(0, 0.02 - 1 / (2 * fc), int(2 * fc))
+        t = np.linspace(0, 0.02, int(fs), endpoint=False)
         # IFFTした点の数と1/(2fc)の数が合わないので、線形補間する
-        fitted = interpolate.interp1d(np.linspace(0, 0.02 - 1 / (2 * fc), int(N)), x)
+        fitted = interpolate.interp1d(np.linspace(0, t[-1], N), x)
         fitted_x = fitted(t)
         # 複素平面上の極座標系から実際の波に変換
         # そのとき、ωcで変調もする
         omega_c = 2 * np.pi * fc
-        return t, fitted_x.real * np.cos(omega_c * t) + fitted_x.imag * np.sin(
-            omega_c * t
-        )
+        _x = fitted_x.real * np.cos(omega_c * t) + fitted_x.imag * np.sin(omega_c * t)
+        return t, _x
 
     def calc(self, X: np.ndarray):
         """
@@ -118,6 +122,7 @@ class OFDM_Modulation:
         """
         # Xがサブキャリア数と等しいか確認
         assert len(X) * 8 == SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL, "OFDM Input Error."
+        # TODO: S/Pの関数はいらないので後で消す
         sp = self.__serial_to_parallel(X)
         bpsk_data = self.__bpsk(sp.astype(np.float64))
         spe = self.__create_spectrum_array(bpsk_data)
@@ -126,16 +131,70 @@ class OFDM_Modulation:
         return t, x, ifft_t, ifft_x
 
 
+class OFDM_Demodulation:
+    def __lpf(self, t: np.ndarray, x: np.ndarray):
+        omega_c = 2 * np.pi * CARRIER_FREQUENCY
+        Re = np.cos(omega_c * t) * x
+        Im = np.sin(omega_c * t) * x
+        # カットオフは適当
+        f_cutoff = 50e3
+        Re_filter = butter_lowpass_filter(Re, f_cutoff, fs, order=5)
+        Im_filter = butter_lowpass_filter(Im, f_cutoff, fs, order=5)
+        x_complex = Re_filter + 1j * Im_filter
+        return t, x_complex
+
+    def __fft(self, x_complex):
+        X = np.fft.fft(x_complex, N)
+        f = np.fft.fftfreq(N, d=1 / SAMPLING_FREQUENCY)
+        return f, X
+
+    def __linear_interpolation(self, t, x):
+        fitted_t = np.linspace(0.0, t[-1], int(N))
+        fitted = interpolate.interp1d(t, x)
+        fitted_x = fitted(fitted_t)
+        return fitted_t, fitted_x
+
+    def calc(self, t: np.ndarray, x: np.ndarray):
+        t, x_complex = self.__lpf(t, x)
+        _t, _x = self.__linear_interpolation(t, x_complex)
+        f, X = self.__fft(_x)
+        return f, X, _t, _x
+
+
+def butter_lowpass(lowcut, fs, order=4):
+    """バターワースローパスフィルタを設計する関数"""
+    nyq = 0.5 * fs
+    low = lowcut / nyq
+    b, a = signal.butter(order, low, btype="low")
+    return b, a
+
+
+def butter_lowpass_filter(x, lowcut, fs, order=4):
+    """データにローパスフィルタをかける関数"""
+    b, a = butter_lowpass(lowcut, fs, order=order)
+    y = signal.filtfilt(b, a, x)
+    return y
+
+
 if __name__ == "__main__":
     original_data = np.array([], dtype=np.int64)
     for i in range(12):
-        # original_data = np.append(original_data, ord("A") + i)
         original_data = np.append(original_data, random.randint(0, 255))
     print(original_data)
     ofdm_mod = OFDM_Modulation()
     t, x, ifft_t, ifft_x = ofdm_mod.calc(original_data)
     fig = plt.figure()
-    # plt.plot(ifft_t, ifft_x)
-    # plt.figure()
+
+    plt.plot(ifft_t, ifft_x)
+    plt.figure()
     plt.plot(t, x)
+    plt.figure()
+
+    ofdm_demod = OFDM_Demodulation()
+    f, X, _t, _x = ofdm_demod.calc(t, x)
+    plt.plot(_t, _x.real)
+    plt.figure()
+    for i in range(len(f)):
+        print(f"f={f[i]}, X={X[i].real:.3f}, arg={cmath.phase(X[i]):.3f}")
+    plt.plot(f, X.real)
     plt.show()
