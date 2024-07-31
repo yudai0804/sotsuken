@@ -118,7 +118,7 @@ class OFDM_Modulation:
         # そのとき、ωcで変調もする
         omega_c = 2 * np.pi * fc
         _x = fitted_x.real * np.cos(omega_c * t) + fitted_x.imag * np.sin(omega_c * t)
-        return t, _x
+        return t, _x, fitted_x
 
     def calc(self, X: np.ndarray):
         """
@@ -135,8 +135,8 @@ class OFDM_Modulation:
         bpsk_data = self.__bpsk(sp.astype(np.float64))
         spe = self.__create_spectrum_array(bpsk_data)
         ifft_t, ifft_x = self.__ifft(spe)
-        t, x = self.__multiply_by_carrier(ifft_x)
-        return t, x, ifft_t, ifft_x
+        t, x, no_carrier_signal = self.__multiply_by_carrier(ifft_x)
+        return t, x, ifft_t, ifft_x, no_carrier_signal
 
 
 class OFDM_Demodulation:
@@ -149,6 +149,8 @@ class OFDM_Demodulation:
         Re_filter = butter_lowpass_filter(Re, f_cutoff, fs, order=5)
         Im_filter = butter_lowpass_filter(Im, f_cutoff, fs, order=5)
         x_complex = Re_filter + 1j * Im_filter
+        # ローパスフィルタを通すと振幅が半分になってしまうので、2倍してもとにもどす
+        x_complex *= 2
         return t, x_complex
 
     def __fft(self, x_complex):
@@ -164,6 +166,11 @@ class OFDM_Demodulation:
 
     def calc(self, t: np.ndarray, x: np.ndarray):
         t, x_complex = self.__lpf(t, x)
+        _t, _x = self.__linear_interpolation(t, x_complex)
+        f, X = self.__fft(_x)
+        return f, X, _t, _x
+
+    def calc_no_carrier(self, t: np.ndarray, x_complex: np.ndarray):
         _t, _x = self.__linear_interpolation(t, x_complex)
         f, X = self.__fft(_x)
         return f, X, _t, _x
@@ -190,7 +197,7 @@ if __name__ == "__main__":
         original_data = np.append(original_data, random.randint(0, 255))
         print(f"0b{original_data[i]:08b}")
     ofdm_mod = OFDM_Modulation()
-    t, x, ifft_t, ifft_x = ofdm_mod.calc(original_data)
+    t, x, ifft_t, ifft_x, no_carrier_signal = ofdm_mod.calc(original_data)
     fig = plt.figure()
 
     plt.plot(ifft_t, ifft_x)
@@ -200,6 +207,7 @@ if __name__ == "__main__":
 
     ofdm_demod = OFDM_Demodulation()
     f, X, _t, _x = ofdm_demod.calc(t, x)
+    # f, X, _t, _x = ofdm_demod.calc_no_carrier(t, no_carrier_signal)
     plt.plot(_t, _x.real)
     plt.figure()
     for i in range(len(f)):
