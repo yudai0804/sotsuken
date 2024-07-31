@@ -129,7 +129,6 @@ class OFDM_Modulation:
         """
         # Xがサブキャリア数と等しいか確認
         assert len(X) * 8 == SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL, "OFDM Input Error."
-        # TODO: S/Pの関数はいらないので後で消す
         sp = self.__serial_to_parallel(X)
         bpsk_data = self.__bpsk(sp.astype(np.float64))
         spe = self.__create_spectrum_array(bpsk_data)
