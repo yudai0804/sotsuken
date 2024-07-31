@@ -120,7 +120,7 @@ class OFDM_Modulation:
         _x = fitted_x.real * np.cos(omega_c * t) + fitted_x.imag * np.sin(omega_c * t)
         return t, _x, fitted_x
 
-    def calc(self, X: np.ndarray):
+    def calculate(self, X: np.ndarray):
         """
         X:入力したいデータ
         返り値:
@@ -163,27 +163,91 @@ class OFDM_Demodulation:
         x_complex *= 2
         return t, x_complex
 
-    def __fft(self, x_complex):
+    def __fft(self, x_complex: np.ndarray):
         X = np.fft.fft(x_complex, N)
         f = np.fft.fftfreq(N, d=1 / SAMPLING_FREQUENCY)
         return f, X
 
-    def __linear_interpolation(self, t, x):
+    def __linear_interpolation(self, t: np.ndarray, x: np.ndarray):
         fitted_t = np.linspace(0.0, t[-1], int(N))
         fitted = interpolate.interp1d(t, x)
         fitted_x = fitted(fitted_t)
         return fitted_t, fitted_x
 
-    def calc(self, t: np.ndarray, x: np.ndarray):
+    def __pilot(self, f: np.ndarray, X: np.ndarray):
+        """
+        FFTした結果は次のように格納されるので、1000~6000Hzの部分のみを切り抜く
+        パイロット信号も除く
+        f = [0, 1, ...,   n/2-1,     -n/2, ..., -1] / (d*n)   if n is even
+        f = [0, 1, ..., (n-1)/2, -(n-1)/2, ..., -1] / (d*n)   if n is odd
+        参考:https://numpy.org/doc/stable/reference/generated/numpy.fft.fftfreq.html#numpy.fft.fftfreq
+        """
+        ans_f = np.zeros(SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL)
+        ans_X = np.zeros(SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL)
+
+        i = SUBCARRIER_FREQUENCY_MIN // SUBCARRIER_INTERVAL
+        j = 0
+        pilot_diff = 0
+        while i <= SUBCARRIER_FREQUENCY_MAX // SUBCARRIER_INTERVAL:
+            is_pilot = False
+            for fp in PILOT_SIGNAL_FREQUENCY:
+                if f[i] == fp:
+                    is_pilot = True
+                    pilot_diff = X[i] - (2 + 0j)
+
+            if is_pilot:
+                i += 1
+                continue
+
+            ans_f[j] = f[i]
+            ans_X[j] = X[i] - pilot_diff
+            i += 1
+            j += 1
+
+        print("signal start")
+
+        for i in range(SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL):
+            print(
+                f"f={ans_f[i]}, X={ans_X[i].real:.3f}, arg={cmath.phase(ans_X[i]):.3f}"
+            )
+
+        print("signal end")
+
+        return ans_f, ans_X
+
+    def __bpsk(self, X):
+        ans = np.zeros(SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL, dtype=int)
+        for i in range(SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL):
+            if X[i].real > 0:
+                ans[i] = 1
+            else:
+                ans[i] = 0
+        return ans
+
+    def __parallel_to_serial(self, x):
+        ans = np.zeros(SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL // 8, dtype=int)
+        for i in range(len(ans)):
+            for j in range(8):
+                if x[8 * i + j] == 1:
+                    ans[i] += 1 << (7 - j)
+        return ans
+
+    def calculate(self, t: np.ndarray, x: np.ndarray):
         t, x_complex = self.__synchronous_detection(t, x)
         _t, _x = self.__linear_interpolation(t, x_complex)
         f, X = self.__fft(_x)
-        return f, X, _t, _x
+        _f, _X = self.__pilot(f, X)
+        para = self.__bpsk(_X)
+        data = self.__parallel_to_serial(para)
+        return data, f, X, _t, _x
 
-    def calc_no_carrier(self, t: np.ndarray, x_complex: np.ndarray):
+    def calculate_no_carrier(self, t: np.ndarray, x_complex: np.ndarray):
         _t, _x = self.__linear_interpolation(t, x_complex)
         f, X = self.__fft(_x)
-        return f, X, _t, _x
+        _f, _X = self.__pilot(f, X)
+        para = self.__bpsk(_X)
+        data = self.__parallel_to_serial(para)
+        return data, f, X, _t, _x
 
 
 if __name__ == "__main__":
@@ -192,7 +256,7 @@ if __name__ == "__main__":
         original_data = np.append(original_data, random.randint(0, 255))
         print(f"0b{original_data[i]:08b}")
     ofdm_mod = OFDM_Modulation()
-    t, x, ifft_t, ifft_x, no_carrier_signal = ofdm_mod.calc(original_data)
+    t, x, ifft_t, ifft_x, no_carrier_signal = ofdm_mod.calculate(original_data)
     fig = plt.figure()
 
     plt.plot(ifft_t, ifft_x)
@@ -201,14 +265,21 @@ if __name__ == "__main__":
     plt.figure()
 
     ofdm_demod = OFDM_Demodulation()
-    f, X, _t, _x = ofdm_demod.calc(t, x)
-    # f, X, _t, _x = ofdm_demod.calc_no_carrier(t, no_carrier_signal)
+    ans_data, f, X, _t, _x = ofdm_demod.calculate(t, x)
+    # ans_data, f, X, _t, _x = ofdm_demod.calculate_no_carrier(t, no_carrier_signal)
+
+    assert len(original_data) == len(ans_data)
+
+    for i in range(len(original_data)):
+        assert original_data[i] == ans_data[i]
+        print(f"original = {original_data[i]}, answer = {ans_data[i]}")
+
     plt.plot(_t, _x.real)
     plt.figure()
     for i in range(len(f)):
         val = 0
         if X[i].real > 0:
             val = 1
-        print(f"f={f[i]}, X={X[i].real:.3f}, arg={cmath.phase(X[i]):.3f}, val={val}")
+        print(f"f={f[i]}, X={X[i].imag:.3f}, arg={cmath.phase(X[i]):.3f}, val={val}")
     plt.plot(f, X.real)
     plt.show()
