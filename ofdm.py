@@ -18,7 +18,6 @@ SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL = 96
 # 変調に用いる情報であって、復調時はサンプリング周波数とNでサブキャリア間隔が決まるので注意
 SUBCARRIER_INTERVAL = 50
 
-
 # パイロット信号の周波数[Hz]
 PILOT_SIGNAL_FREQUENCY = [1000, 1050, 2700, 4350, 6000]
 # パイロット信号の数[Hz]
@@ -232,8 +231,12 @@ class OFDM_Demodulation:
                     ans[i] += 1 << (7 - j)
         return ans
 
-    def calculate(self, t: np.ndarray, x: np.ndarray):
-        t, x_complex = self.__synchronous_detection(t, x)
+    def calculate(self, t: np.ndarray, x: np.ndarray, is_no_carrier=False):
+        x_complex = np.array([])
+        if is_no_carrier:
+            x_complex = x
+        else:
+            t, x_complex = self.__synchronous_detection(t, x)
         _t, _x = self.__linear_interpolation(t, x_complex)
         f, X = self.__fft(_x)
         _f, _X = self.__pilot(f, X)
@@ -242,12 +245,10 @@ class OFDM_Demodulation:
         return data, f, X, _t, _x
 
     def calculate_no_carrier(self, t: np.ndarray, x_complex: np.ndarray):
-        _t, _x = self.__linear_interpolation(t, x_complex)
-        f, X = self.__fft(_x)
-        _f, _X = self.__pilot(f, X)
-        para = self.__bpsk(_X)
-        data = self.__parallel_to_serial(para)
-        return data, f, X, _t, _x
+        """
+        x_complexは搬送波を含んでいない信号である必要がある
+        """
+        return self.calculate(t, x_complex, is_no_carrier=True)
 
 
 if __name__ == "__main__":
