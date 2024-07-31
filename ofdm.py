@@ -18,9 +18,6 @@ SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL = 96
 # 変調に用いる情報であって、復調時はサンプリング周波数とNでサブキャリア間隔が決まるので注意
 SUBCARRIER_INTERVAL = 50
 
-# キャリア周波数[Hz]
-# 値は仮
-CARRIER_FREQUENCY = 1e5
 
 # パイロット信号の周波数[Hz]
 PILOT_SIGNAL_FREQUENCY = [1000, 1050, 2700, 4350, 6000]
@@ -33,7 +30,17 @@ PILOT_SIGNAL_PHASE = 0
 
 SAMPLING_FREQUENCY = 12800
 
-fs = 1e6
+
+#####################
+# お気持ちパラメーター
+# 変えると動かなくなるので注意
+
+# キャリア周波数[Hz]
+# 値は仮
+CARRIER_FREQUENCY = 2e6
+fs = 1e7
+cutoff = 1e4
+#####################
 
 
 class OFDM_Modulation:
@@ -137,7 +144,7 @@ class OFDM_Demodulation:
         Re = np.cos(omega_c * t) * x
         Im = np.sin(omega_c * t) * x
         # カットオフは適当
-        f_cutoff = 50e3
+        f_cutoff = cutoff
         Re_filter = butter_lowpass_filter(Re, f_cutoff, fs, order=5)
         Im_filter = butter_lowpass_filter(Im, f_cutoff, fs, order=5)
         x_complex = Re_filter + 1j * Im_filter
@@ -180,7 +187,7 @@ if __name__ == "__main__":
     original_data = np.array([], dtype=np.int64)
     for i in range(12):
         original_data = np.append(original_data, random.randint(0, 255))
-    print(original_data)
+        print(f"0b{original_data[i]:08b}")
     ofdm_mod = OFDM_Modulation()
     t, x, ifft_t, ifft_x = ofdm_mod.calc(original_data)
     fig = plt.figure()
@@ -195,6 +202,9 @@ if __name__ == "__main__":
     plt.plot(_t, _x.real)
     plt.figure()
     for i in range(len(f)):
-        print(f"f={f[i]}, X={X[i].real:.3f}, arg={cmath.phase(X[i]):.3f}")
+        val = 0
+        if X[i].real > 0:
+            val = 1
+        print(f"f={f[i]}, X={X[i].real:.3f}, arg={cmath.phase(X[i]):.3f}, val={val}")
     plt.plot(f, X.real)
     plt.show()
