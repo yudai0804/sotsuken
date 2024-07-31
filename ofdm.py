@@ -140,14 +140,22 @@ class OFDM_Modulation:
 
 
 class OFDM_Demodulation:
-    def __lpf(self, t: np.ndarray, x: np.ndarray):
+    def __lpf(self, x, cutoff, fs, order=5):
+        # カットオフ周波数はナイキスト周波数で正規化したものをbutter関数に渡す
+        _cutoff = cutoff / (0.5 * fs)
+        b, a = signal.butter(order, _cutoff, btype="low")
+        y = signal.filtfilt(b, a, x)
+        return y
+
+    def __synchronous_detection(self, t: np.ndarray, x: np.ndarray):
+        """
+        同期検波
+        """
         omega_c = 2 * np.pi * CARRIER_FREQUENCY
         Re = np.cos(omega_c * t) * x
         Im = np.sin(omega_c * t) * x
-        # カットオフは適当
-        f_cutoff = cutoff
-        Re_filter = butter_lowpass_filter(Re, f_cutoff, fs, order=5)
-        Im_filter = butter_lowpass_filter(Im, f_cutoff, fs, order=5)
+        Re_filter = self.__lpf(Re, cutoff, fs)
+        Im_filter = self.__lpf(Im, cutoff, fs)
         x_complex = Re_filter + 1j * Im_filter
         # ローパスフィルタを通すと振幅が半分になってしまうので、2倍してもとにもどす
         # cos(ωs t)cos^2(ωc t)
@@ -167,7 +175,7 @@ class OFDM_Demodulation:
         return fitted_t, fitted_x
 
     def calc(self, t: np.ndarray, x: np.ndarray):
-        t, x_complex = self.__lpf(t, x)
+        t, x_complex = self.__synchronous_detection(t, x)
         _t, _x = self.__linear_interpolation(t, x_complex)
         f, X = self.__fft(_x)
         return f, X, _t, _x
@@ -176,21 +184,6 @@ class OFDM_Demodulation:
         _t, _x = self.__linear_interpolation(t, x_complex)
         f, X = self.__fft(_x)
         return f, X, _t, _x
-
-
-def butter_lowpass(lowcut, fs, order=4):
-    """バターワースローパスフィルタを設計する関数"""
-    nyq = 0.5 * fs
-    low = lowcut / nyq
-    b, a = signal.butter(order, low, btype="low")
-    return b, a
-
-
-def butter_lowpass_filter(x, lowcut, fs, order=4):
-    """データにローパスフィルタをかける関数"""
-    b, a = butter_lowpass(lowcut, fs, order=order)
-    y = signal.filtfilt(b, a, x)
-    return y
 
 
 if __name__ == "__main__":
