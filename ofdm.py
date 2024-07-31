@@ -150,6 +150,8 @@ class OFDM_Demodulation:
         Im_filter = butter_lowpass_filter(Im, f_cutoff, fs, order=5)
         x_complex = Re_filter + 1j * Im_filter
         # ローパスフィルタを通すと振幅が半分になってしまうので、2倍してもとにもどす
+        # cos(ωs t)cos^2(ωc t)
+        # を計算すると1/2が出てくるため(同期検波)
         x_complex *= 2
         return t, x_complex
 
