@@ -4,6 +4,8 @@ from scipy import signal
 import matplotlib.pyplot as plt
 import random
 import cmath
+import sys
+import bisect
 
 # IFFT/FFTの回転因子の数
 N = 256
@@ -161,6 +163,31 @@ class OFDM_Demodulation:
         x_complex *= 2
         return t, x_complex
 
+    def __quantization(self, x, bit, low, high):
+        """
+        量子化
+        フーリエ変換の式
+        f[x]=\frac{1}{n}\sum_{k=0}^{N-1}F[k]e^{\frac{j2\pi k x}{N}}
+        より量子化の範囲をどの程度にすればいいかがわかる。
+        今回は上限と下限は±0.5、量子化は1024段階とする
+        """
+        # 二部探索を用いて量子化
+        y = np.zeros(len(x), dtype="complex128")
+        q = np.linspace(low, high, int(2**bit))
+        for i in range(len(x)):
+            # real
+            j = bisect.bisect(q, x[i].real)
+            if j == len(q):
+                j = len(q) - 1
+            y[i] += q[j]
+            # imag
+            j = bisect.bisect(q, x[i].imag)
+            if j == len(q):
+                j = len(q) - 1
+            y[i] += 1j * q[j]
+
+        return y
+
     def __fft(self, x_complex: np.ndarray):
         X = np.fft.fft(x_complex, N)
         f = np.fft.fftfreq(N, d=1 / SAMPLING_FREQUENCY)
@@ -237,11 +264,13 @@ class OFDM_Demodulation:
         else:
             t, x_complex = self.__synchronous_detection(t, x)
         _t, _x = self.__linear_interpolation(t, x_complex)
-        f, X = self.__fft(_x)
+        __x = self.__quantization(_x, 8, -0.5, 0.5)
+        f, X = self.__fft(__x)
+        # f, X = self.__fft(_x)
         _f, _X = self.__pilot(f, X)
         para = self.__bpsk(_X)
         data = self.__parallel_to_serial(para)
-        return data, f, X, _t, _x
+        return data, f, X, _t, _x, __x
 
     def calculate_no_carrier(self, t: np.ndarray, x_complex: np.ndarray):
         """
@@ -265,21 +294,26 @@ if __name__ == "__main__":
     plt.figure()
 
     ofdm_demod = OFDM_Demodulation()
-    ans_data, f, X, _t, _x = ofdm_demod.calculate(t, x)
-    # ans_data, f, X, _t, _x = ofdm_demod.calculate_no_carrier(t, no_carrier_signal)
-
+    ans_data, f, X, _t, _x, __x = ofdm_demod.calculate(t, x)
+    # ans_data, f, X, _t, _x, __x = ofdm_demod.calculate_no_carrier(t, no_carrier_signal)
     assert len(original_data) == len(ans_data)
 
     for i in range(len(original_data)):
-        assert original_data[i] == ans_data[i]
+        assert (
+            original_data[i] == ans_data[i]
+        ), f"original = {original_data[i]}, answer = {ans_data[i]}"
         print(f"original = {original_data[i]}, answer = {ans_data[i]}")
+
+    # print("compare qualization")
+    # for i in range(len(_x)):
+    # print(f"f={f[i]}, x={_x[i]}, xq={__x[i]}")
 
     plt.plot(_t, _x.real)
     plt.figure()
-    for i in range(len(f)):
-        val = 0
-        if X[i].real > 0:
-            val = 1
-        print(f"f={f[i]}, X={X[i].imag:.3f}, arg={cmath.phase(X[i]):.3f}, val={val}")
+    # for i in range(len(f)):
+    # val = 0
+    # if X[i].real > 0:
+    # val = 1
+    # print(f"f={f[i]}, X={X[i].imag:.3f}, arg={cmath.phase(X[i]):.3f}, val={val}")
     plt.plot(f, X.real)
     plt.show()
