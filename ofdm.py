@@ -1,10 +1,8 @@
 import numpy as np
-from scipy import interpolate
-from scipy import signal
+import scipy.signal
+import scipy.interpolate
 import matplotlib.pyplot as plt
-import random
 import cmath
-import sys
 import bisect
 
 # IFFT/FFTの回転因子の数
@@ -113,7 +111,7 @@ class OFDM_Modulation:
         fc = CARRIER_FREQUENCY
         t = np.linspace(0, 0.02, int(fs), endpoint=False)
         # IFFTした点の数と1/(2fc)の数が合わないので、線形補間する
-        fitted = interpolate.interp1d(np.linspace(0, t[-1], N), x)
+        fitted = scipy.interpolate.interp1d(np.linspace(0, t[-1], N), x)
         fitted_x = fitted(t)
         # 複素平面上の極座標系から実際の波に変換
         # そのとき、ωcで変調もする
@@ -143,8 +141,8 @@ class OFDM_Demodulation:
     def __lpf(self, x, cutoff, fs, order=5):
         # カットオフ周波数はナイキスト周波数で正規化したものをbutter関数に渡す
         _cutoff = cutoff / (0.5 * fs)
-        b, a = signal.butter(order, _cutoff, btype="low")
-        y = signal.filtfilt(b, a, x)
+        b, a = scipy.signal.butter(order, _cutoff, btype="low")
+        y = scipy.signal.filtfilt(b, a, x)
         return y
 
     def __synchronous_detection(self, t: np.ndarray, x: np.ndarray):
@@ -195,7 +193,7 @@ class OFDM_Demodulation:
 
     def __linear_interpolation(self, t: np.ndarray, x: np.ndarray):
         fitted_t = np.linspace(0.0, t[-1], int(N))
-        fitted = interpolate.interp1d(t, x)
+        fitted = scipy.interpolate.interp1d(t, x)
         fitted_x = fitted(fitted_t)
         return fitted_t, fitted_x
 
@@ -280,6 +278,14 @@ class OFDM_Demodulation:
 
 
 if __name__ == "__main__":
+    # matplotlibを使ったときにctrl cで停止できるようにする
+    # 参考:https://stackoverflow.com/questions/67977761/how-to-make-plt-show-responsive-to-ctrl-c
+    import signal
+
+    import sys
+    import random
+
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
     original_data = np.array([], dtype=np.int64)
     for i in range(12):
         original_data = np.append(original_data, random.randint(0, 255))
@@ -287,27 +293,22 @@ if __name__ == "__main__":
     ofdm_mod = OFDM_Modulation()
     t, x, ifft_t, ifft_x, no_carrier_signal = ofdm_mod.calculate(original_data)
     fig = plt.figure()
-
     plt.plot(ifft_t, ifft_x)
     plt.figure()
     plt.plot(t, x)
     plt.figure()
-
     ofdm_demod = OFDM_Demodulation()
     ans_data, f, X, _t, _x, __x = ofdm_demod.calculate(t, x)
     # ans_data, f, X, _t, _x, __x = ofdm_demod.calculate_no_carrier(t, no_carrier_signal)
     assert len(original_data) == len(ans_data)
-
     for i in range(len(original_data)):
         assert (
             original_data[i] == ans_data[i]
         ), f"original = {original_data[i]}, answer = {ans_data[i]}"
         print(f"original = {original_data[i]}, answer = {ans_data[i]}")
-
     # print("compare qualization")
     # for i in range(len(_x)):
     # print(f"f={f[i]}, x={_x[i]}, xq={__x[i]}")
-
     plt.plot(_t, _x.real)
     plt.figure()
     # for i in range(len(f)):
