@@ -76,16 +76,16 @@ class OFDM_Modulation:
         return y
 
     def __create_spectrum_array(self, bpsk_phase: np.ndarray) -> np.ndarray:
-        all_subcarrire_number = SUBCARRIER_FREQUENCY_MAX // SUBCARRIER_INTERVAL + 1
+        all_subcarrier_number = SUBCARRIER_FREQUENCY_MAX // SUBCARRIER_INTERVAL + 1
         # all_subcarrier_number < N/2よりサブキャリアの周波数はすべて正であることが保証される。
         # 参考:https://numpy.org/doc/stable/reference/generated/numpy.fft.ifft.html
-        assert all_subcarrire_number < N / 2
+        assert all_subcarrier_number < N / 2
         phase = np.zeros(N, dtype=np.complex128)
         A = np.zeros(N, dtype=np.complex128)
-        f = np.linspace(0, SUBCARRIER_FREQUENCY_MAX, all_subcarrire_number)
+        f = np.linspace(0, SUBCARRIER_FREQUENCY_MAX, all_subcarrier_number)
         j = 0
         for i in range(
-            SUBCARRIER_FREQUENCY_MIN // SUBCARRIER_INTERVAL, all_subcarrire_number
+            SUBCARRIER_FREQUENCY_MIN // SUBCARRIER_INTERVAL, all_subcarrier_number
         ):
             is_pilot_signal = False
             for f_ps in PILOT_SIGNAL_FREQUENCY:
@@ -174,7 +174,7 @@ class OFDM_Demodulation:
         より量子化の範囲をどの程度にすればいいかがわかる。
         今回は上限と下限は±0.5、量子化は1024段階とする
         """
-        # 二部探索を用いて量子化
+        # 二分探索を用いて量子化
         y = np.zeros(len(x), dtype="complex128")
         q = np.linspace(low, high, int(2**bit))
         for i in range(len(x)):
