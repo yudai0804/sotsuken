@@ -206,7 +206,7 @@ class OFDM_Demodulation:
         参考:https://numpy.org/doc/stable/reference/generated/numpy.fft.fftfreq.html#numpy.fft.fftfreq
         """
         ans_f = np.zeros(SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL)
-        ans_X = np.zeros(SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL)
+        ans_X = np.zeros(SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL, dtype=np.complex128)
 
         i = SUBCARRIER_FREQUENCY_MIN // SUBCARRIER_INTERVAL
         j = 0
@@ -226,7 +226,7 @@ class OFDM_Demodulation:
             ans_X[j] = X[i] - pilot_diff
             i += 1
             j += 1
-
+        """
         print("signal start")
 
         for i in range(SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL):
@@ -235,6 +235,7 @@ class OFDM_Demodulation:
             )
 
         print("signal end")
+        """
 
         return ans_f, ans_X
 
@@ -262,7 +263,7 @@ class OFDM_Demodulation:
         else:
             t, x_complex = self.__synchronous_detection(t, x)
         _t, _x = self.__linear_interpolation(t, x_complex)
-        __x = self.__quantization(_x, 8, -0.5, 0.5)
+        __x = self.__quantization(_x, 10, -0.5, 0.5)
         f, X = self.__fft(__x)
         # f, X = self.__fft(_x)
         _f, _X = self.__pilot(f, X)
@@ -275,6 +276,63 @@ class OFDM_Demodulation:
         x_complexは搬送波を含んでいない信号である必要がある
         """
         return self.calculate(t, x_complex, is_no_carrier=True)
+
+
+class Correlation:
+    def __init__(self):
+        self.CORRELATION_THRESHOLD = 0.1
+
+    def __xcorr_simple(self, x):
+        R = np.zeros(N + 1)
+        for i in range(N):
+            for j in range(1, N + 1):
+                R[j] += x[i] * x[i + j] / N
+        for i in range(N):
+            R[0] += x[i] * x[i] / N
+        return R
+
+    def __xcorr_fast(self, x):
+        xa = np.zeros(N)
+        xb = np.zeros(N)
+        for i in range(N):
+            xa[i] = x[i]
+            xb[i] = x[i + N]
+        a = np.fft.fft(xa, N)
+        b = np.fft.fft(xb, N)
+        ab = np.zeros(N)
+        for i in range(N):
+            ab[i] = a[i] * b[i]
+        _R = np.fft.ifft(ab)
+        R = np.zeros(N + 1)
+        for i in range(N):
+            R[0] = x[i] * x[i] / N
+        for i in range(N):
+            R[i + 1] = _R[i] / N
+        return R
+
+    def calculate(self, x):
+        # 相関を取る
+        # メモ:相関の値が8.3を超えてれば確実にOK
+        Rf = self.__xcorr_fast(x)
+        Rs = self.__xcorr_simple(x)
+        for i in range(N + 1):
+            print(f"i = {i}, Rf = {Rf[i]}, Rs = {Rs[i]}")
+        return Rs
+
+
+def create_plot_array(f, X):
+    """numpy fftの結果の並びは変な順番なので、ソートする"""
+    data = []
+    for i in range(N):
+        data.append([f[i], X[i]])
+    data.sort(key=lambda x: (x[0], x[1]))
+    print(data)
+    ret_f = np.zeros(N)
+    ret_X = np.zeros(N)
+    for i in range(N):
+        ret_f[i] = data[i][0]
+        ret_X[i] = data[i][1]
+    return ret_f, ret_X
 
 
 if __name__ == "__main__":
@@ -299,6 +357,18 @@ if __name__ == "__main__":
     plt.figure()
     ofdm_demod = OFDM_Demodulation()
     ans_data, f, X, _t, _x, __x = ofdm_demod.calculate(t, x)
+
+    corr = Correlation()
+    x_2n = np.zeros(2 * N, dtype=np.float64)
+    for i in range(N):
+        x_2n[i] = __x[i].real * 100
+        x_2n[i + N] = __x[i].real * 100
+    # for i in range(15):
+    # x_2n[i] = 0
+    R = corr.calculate(x_2n)
+    for i in range(len(R)):
+        print(f"i={i},R={R[i]:.4f}")
+
     # ans_data, f, X, _t, _x, __x = ofdm_demod.calculate_no_carrier(t, no_carrier_signal)
     assert len(original_data) == len(ans_data)
     for i in range(len(original_data)):
@@ -316,5 +386,16 @@ if __name__ == "__main__":
     # if X[i].real > 0:
     # val = 1
     # print(f"f={f[i]}, X={X[i].imag:.3f}, arg={cmath.phase(X[i]):.3f}, val={val}")
-    plt.plot(f, X.real)
+
+    # plot_f, plot_X = create_plot_array(f, X.real)
+    plot_f = np.fft.fftshift(f)
+    plot_X = np.fft.fftshift(X.real)
+    plt.plot(plot_f, plot_X)
+
+    # plt.plot(f, X.real)
+    # plot(f, X.real)
+
+    plt.figure()
+    plt.plot(np.arange(N + 1), R)
+
     plt.show()
