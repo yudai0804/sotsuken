@@ -2,10 +2,12 @@ import numpy as np
 import scipy.signal
 import scipy.interpolate
 import matplotlib.pyplot as plt
-import japanize_matplotlib
 import cmath
 import bisect
 import math
+
+# japanize-matplotlibの代替(Python3.12以降はjapanize-matplotlibは動かないらしいので)
+import matplotlib_fontja
 
 # IFFT/FFTの回転因子の数
 N = 256
