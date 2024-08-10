@@ -387,7 +387,9 @@ if __name__ == "__main__":
     # val = 1
     # print(f"f={f[i]}, X={X[i].imag:.3f}, arg={cmath.phase(X[i]):.3f}, val={val}")
 
-    plot_f, plot_X = create_plot_array(f, X.real)
+    # plot_f, plot_X = create_plot_array(f, X.real)
+    plot_f = np.fft.fftshift(f)
+    plot_X = np.fft.fftshift(X.real)
     plt.plot(plot_f, plot_X)
 
     # plt.plot(f, X.real)
