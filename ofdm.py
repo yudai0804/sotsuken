@@ -2,8 +2,10 @@ import numpy as np
 import scipy.signal
 import scipy.interpolate
 import matplotlib.pyplot as plt
+import japanize_matplotlib
 import cmath
 import bisect
+import math
 
 # IFFT/FFTの回転因子の数
 N = 256
@@ -75,8 +77,11 @@ class OFDM_Modulation:
 
     def __create_spectrum_array(self, bpsk_phase: np.ndarray) -> np.ndarray:
         all_subcarrire_number = SUBCARRIER_FREQUENCY_MAX // SUBCARRIER_INTERVAL + 1
-        phase = np.zeros(all_subcarrire_number)
-        A = np.zeros(all_subcarrire_number)
+        # all_subcarrier_number < N/2よりサブキャリアの周波数はすべて正であることが保証される。
+        # 参考:https://numpy.org/doc/stable/reference/generated/numpy.fft.ifft.html
+        assert all_subcarrire_number < N / 2
+        phase = np.zeros(N, dtype=np.complex128)
+        A = np.zeros(N, dtype=np.complex128)
         f = np.linspace(0, SUBCARRIER_FREQUENCY_MAX, all_subcarrire_number)
         j = 0
         for i in range(
@@ -152,8 +157,8 @@ class OFDM_Demodulation:
         omega_c = 2 * np.pi * CARRIER_FREQUENCY
         Re = np.cos(omega_c * t) * x
         Im = np.sin(omega_c * t) * x
-        Re_filter = self.__lpf(Re, cutoff, fs)
-        Im_filter = self.__lpf(Im, cutoff, fs)
+        Re_filter = self.__lpf(Re, cutoff, fs, order=5)
+        Im_filter = self.__lpf(Im, cutoff, fs, order=5)
         x_complex = Re_filter + 1j * Im_filter
         # ローパスフィルタを通すと振幅が半分になってしまうので、2倍してもとにもどす
         # cos(ωs t)cos^2(ωc t)
@@ -263,6 +268,8 @@ class OFDM_Demodulation:
         else:
             t, x_complex = self.__synchronous_detection(t, x)
         _t, _x = self.__linear_interpolation(t, x_complex)
+        # 量子化をするとDCバイアスが少しのる。
+        # 量子化を細かくすればDCバイアスは小さくなる
         __x = self.__quantization(_x, 10, -0.5, 0.5)
         f, X = self.__fft(__x)
         # f, X = self.__fft(_x)
@@ -320,21 +327,6 @@ class Correlation:
         return Rs
 
 
-def create_plot_array(f, X):
-    """numpy fftの結果の並びは変な順番なので、ソートする"""
-    data = []
-    for i in range(N):
-        data.append([f[i], X[i]])
-    data.sort(key=lambda x: (x[0], x[1]))
-    print(data)
-    ret_f = np.zeros(N)
-    ret_X = np.zeros(N)
-    for i in range(N):
-        ret_f[i] = data[i][0]
-        ret_X[i] = data[i][1]
-    return ret_f, ret_X
-
-
 if __name__ == "__main__":
     # matplotlibを使ったときにctrl cで停止できるようにする
     # 参考:https://stackoverflow.com/questions/67977761/how-to-make-plt-show-responsive-to-ctrl-c
@@ -352,50 +344,42 @@ if __name__ == "__main__":
     t, x, ifft_t, ifft_x, no_carrier_signal = ofdm_mod.calculate(original_data)
     fig = plt.figure()
     plt.plot(ifft_t, ifft_x)
+    plt.title("入力信号をIFFTした結果")
+    plt.xlabel("時間[s]")
+    plt.ylabel("振幅")
+
     plt.figure()
     plt.plot(t, x)
-    plt.figure()
+    plt.title("IFFTした結果に搬送波をかけ合わせた結果")
+    plt.xlabel("時間[s]")
+    plt.ylabel("振幅")
+
     ofdm_demod = OFDM_Demodulation()
     ans_data, f, X, _t, _x, __x = ofdm_demod.calculate(t, x)
-
-    corr = Correlation()
-    x_2n = np.zeros(2 * N, dtype=np.float64)
-    for i in range(N):
-        x_2n[i] = __x[i].real * 100
-        x_2n[i + N] = __x[i].real * 100
-    # for i in range(15):
-    # x_2n[i] = 0
-    R = corr.calculate(x_2n)
-    for i in range(len(R)):
-        print(f"i={i},R={R[i]:.4f}")
-
     # ans_data, f, X, _t, _x, __x = ofdm_demod.calculate_no_carrier(t, no_carrier_signal)
+
     assert len(original_data) == len(ans_data)
     for i in range(len(original_data)):
         assert (
             original_data[i] == ans_data[i]
         ), f"original = {original_data[i]}, answer = {ans_data[i]}"
         print(f"original = {original_data[i]}, answer = {ans_data[i]}")
-    # print("compare qualization")
-    # for i in range(len(_x)):
-    # print(f"f={f[i]}, x={_x[i]}, xq={__x[i]}")
-    plt.plot(_t, _x.real)
-    plt.figure()
-    # for i in range(len(f)):
-    # val = 0
-    # if X[i].real > 0:
-    # val = 1
-    # print(f"f={f[i]}, X={X[i].imag:.3f}, arg={cmath.phase(X[i]):.3f}, val={val}")
+    for i in range(len(X)):
+        print(f"f = {f[i]}, X = {X[i]:.3f}")
 
-    # plot_f, plot_X = create_plot_array(f, X.real)
+    plt.figure()
+    plt.plot(_t, _x.real)
+    plt.title("受信信号に同期検波を行った結果")
+    plt.xlabel("時間[s]")
+    plt.ylabel("振幅")
+
     plot_f = np.fft.fftshift(f)
     plot_X = np.fft.fftshift(X.real)
-    plt.plot(plot_f, plot_X)
-
-    # plt.plot(f, X.real)
-    # plot(f, X.real)
 
     plt.figure()
-    plt.plot(np.arange(N + 1), R)
+    plt.plot(plot_f, plot_X)
+    plt.title("受信信号をFFTした結果")
+    plt.xlabel("周波数[Hz]")
+    plt.ylabel("振幅")
 
     plt.show()
