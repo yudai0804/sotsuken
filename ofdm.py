@@ -126,7 +126,7 @@ class OFDM_Modulation:
         _x = fitted_x.real * np.cos(omega_c * t) + fitted_x.imag * np.sin(omega_c * t)
         return t, _x, fitted_x
 
-    def calculate(self, X: np.ndarray):
+    def calculate(self, X: np.ndarray, is_no_carrier=False):
         """
         X:入力したいデータ
         返り値:
@@ -140,8 +140,19 @@ class OFDM_Modulation:
         bpsk_data = self.__bpsk(sp.astype(np.float64))
         spe = self.__create_spectrum_array(bpsk_data)
         ifft_t, ifft_x = self.__ifft(spe)
-        t, x, no_carrier_signal = self.__multiply_by_carrier(ifft_x)
-        return t, x, ifft_t, ifft_x, no_carrier_signal
+        t = np.array([])
+        x = np.array([])
+        if is_no_carrier == False:
+            t, x, _dummy = self.__multiply_by_carrier(ifft_x)
+        return t, x, ifft_t, ifft_x
+
+    def calculate_no_carrier(self, X: np.ndarray):
+        """
+        搬送波との掛け合わせを行っていない結果(ifftを行った結果)を返す
+        tとxは空の配列なので、ifft_tとifft_xのみ返す
+        """
+        t, x, ifft_t, ifft_x = self.calculate(X, is_no_carrier=True)
+        return ifft_t, ifft_x
 
 
 class OFDM_Demodulation:
@@ -287,46 +298,135 @@ class OFDM_Demodulation:
         return self.calculate(t, x_complex, is_no_carrier=True)
 
 
-class Correlation:
+class Synchronization:
     def __init__(self):
-        self.CORRELATION_THRESHOLD = 0.1
+        self.INTEGRATION_THRESHOLD_HIGH = 0.1
+        self.INTEGRATION_THRESHOLD_LOW = 0.01
+        self.BUFFER_LENGTH = 16 * N
+        self.CORR_THRESHOLD = 0.15
 
-    def __xcorr_simple(self, x):
-        R = np.zeros(N + 1)
-        for i in range(N):
-            for j in range(1, N + 1):
-                R[j] += x[i] * x[i + j] / N
-        for i in range(N):
-            R[0] += x[i] * x[i] / N
-        return R
+    def __xcorr(self, x: np.ndarray, y: np.ndarray = []):
+        """
+        循環畳み込み積分を使って相互相関関数を求める
+        yの要素数0のときはy=xとなって、自己相関関数を求める
 
-    def __xcorr_fast(self, x):
-        xa = np.zeros(N)
-        xb = np.zeros(N)
-        for i in range(N):
-            xa[i] = x[i]
-            xb[i] = x[i + N]
-        a = np.fft.fft(xa, N)
-        b = np.fft.fft(xb, N)
-        ab = np.zeros(N)
-        for i in range(N):
-            ab[i] = a[i] * b[i]
-        _R = np.fft.ifft(ab)
-        R = np.zeros(N + 1)
-        for i in range(N):
-            R[0] = x[i] * x[i] / N
-        for i in range(N):
-            R[i + 1] = _R[i] / N
-        return R
+        仕様はmatlabのxcorrと同じ(はず)
+        numpy.correlateやscipy.signal.correlateとは仕様が違うので注意
+        参考
+        xcorrの仕様(matlab):https://jp.mathworks.com/help/matlab/ref/xcorr.html
+        xcorrの理論(巡回畳み込み積分)および実装例:https://www.ikko.k.hosei.ac.jp/~matlab/xcorr.pdf
 
-    def calculate(self, x):
-        # 相関を取る
-        # メモ:相関の値が8.3を超えてれば確実にOK
-        Rf = self.__xcorr_fast(x)
-        Rs = self.__xcorr_simple(x)
-        for i in range(N + 1):
-            print(f"i = {i}, Rf = {Rf[i]}, Rs = {Rs[i]}")
-        return Rs
+        例
+
+        x = np.array([2, 3, 4, 5], dtype=np.complex128)
+        y = np.array([3, 4, 5, 7], dtype=np.complex128)
+        ans = xcorr(x, y)
+        print(ans)
+        結果
+        [14.+0.j 31.+0.j 51.+0.j 73.+0.j 50.+0.j 32.+0.j 15.+0.j]
+
+        ans[0] = x[0] * y[3] = 2 * 7 = 14(左に3つシフト)
+        ans[1] = x[0] * y[2] + x[1] * y[3] = 2 * 5 + 3 * 7 = 31(左に2つシフト)
+        ans[2] = x[0] * y[1] + x[1] * y[2] + x[2] * y[3] = 2 * 4 + 3 * 5 + 4 * 7 = 51(左に1つシフト)
+        ans[3] = x[0] * y[0] + x[1] * y[1] + x[2] * y[2] + x[3] * y[3] = 2 * 3 + 3 * 4 + 4 * 5 + 5 * 7 = 73(シフトなし)
+        ans[4] = x[1] * y[0] + x[2] * y[1] + x[3] * y[2] =  3 * 3 + 4 * 4 + 5 * 5 = 50(右に1つシフト)
+        ans[5] = x[2] * y[0] + x[3] * y[1] = 4 * 3 + 5 * 4 = 32(右に2つシフト)
+        ans[6] = x[3] * y[0] = 5 * 3 = 15(右に3つシフト)
+        """
+
+        # データ長が0の場合はxをコピー
+        if len(y) == 0:
+            y = x
+
+        # 巡回畳み込み積分を行うためにゼロ埋めした配列を作る
+        l_corr = 2 * max((len(x), len(y))) - 1
+        xx = np.zeros(l_corr, dtype=np.complex128)
+        yy = np.zeros(l_corr, dtype=np.complex128)
+        if len(x) == len(y):
+            # xx = [0, ... , x]
+            # 先頭に0をlen(x)-1個
+            for i in range(len(x)):
+                xx[len(x) - 1 + i] = x[i]
+            # yy = [y, 0, ...]
+            # 末尾に0をlen(x)-1個
+            for i in range(len(y)):
+                yy[i] = y[i]
+        elif len(x) > len(y):
+            # xx = [0, ... , x]
+            # 先頭に0をlen(x)-1個
+            for i in range(len(x)):
+                xx[len(x) - 1 + i] = x[i]
+            # yy = [y, 0, ...]
+            # 末尾に0をlen(x)-1 + (len(x)-len(y))個
+            for i in range(len(y)):
+                yy[i] = y[i]
+        elif len(x) < len(y):
+            # xx = [0, ... , x, 0, ...]
+            # 先頭に0をlen(y)-1個
+            # 末尾に0をlen(y)-len(x)個
+            for i in range(len(x)):
+                xx[len(y) - 1 + i] = x[i]
+            # yy = [y, 0, ...]
+            # 末尾に0をlen(y)-1個
+            for i in range(len(y)):
+                yy[i] = y[i]
+        # print(xx.real)
+        # print(yy.real)
+        XX = np.fft.fft(xx)
+        YY = np.fft.fft(yy)
+        R = np.fft.ifft(XX * YY.conj())
+        return R, np.arange(len(R)) - len(R) // 2
+
+    def calculate(self, x: np.ndarray):
+        assert len(x) == self.BUFFER_LENGTH, "length error"
+
+        sum = 0
+        offset = -1
+        # 積分して信号を探す
+        # 台形近似を行う場合、2点のデータが必要になって面倒なので、単純に足し合わせる。
+        for i in range(len(x)):
+            # 真面目に積分するならdtかけないといけないが、dtをかけると値が小さくて扱いにくいのでやらない。
+            # sum += abs(x[i]) * dt
+            sum += abs(x[i])
+            if sum >= self.INTEGRATION_THRESHOLD_HIGH:
+                offset = i
+                break
+
+        # 積分した結果、信号を見つけられなかった場合
+        assert offset != -1, "can not find signal."
+
+        # 時を戻して、オフセットを正確な値に近づける。
+        for i in reversed(range(offset + 1)):
+            sum -= abs(x[i])
+            if sum <= self.INTEGRATION_THRESHOLD_LOW:
+                offset = i
+                break
+
+        # 信号部分のみを切り取る
+        x_signal = np.zeros(self.BUFFER_LENGTH, dtype=np.complex128)
+        for i in range(self.BUFFER_LENGTH):
+            if offset + i >= self.BUFFER_LENGTH:
+                break
+            x_signal[i] = x[offset + i]
+        # 相互相関関数を求めるために、信号1周期だけを切り取る
+        x_one_cycle = np.zeros(N, dtype=np.complex128)
+        for i in range(N):
+            x_one_cycle[i] = x[offset + i]
+        # 相互相関関数を求める
+        R, index = self.__xcorr(x_signal, x_one_cycle)
+
+        signal_index = np.array([], int)
+        last_detect = -1
+        for i in range(len(R) // 2, len(R)):
+            if R[i].real > self.CORR_THRESHOLD:
+                # オフセット分ずらす
+                signal_index = np.append(signal_index, index[i] + offset)
+                last_detect = index[i]
+            # 1周期ちょっと離れても、信号が見つからない場合は終了
+            if index[i] - last_detect > 300:
+                break
+
+        return signal_index, R, index
 
 
 if __name__ == "__main__":
@@ -337,51 +437,127 @@ if __name__ == "__main__":
     import sys
     import random
 
-    signal.signal(signal.SIGINT, signal.SIG_DFL)
-    original_data = np.array([], dtype=np.int64)
-    for i in range(12):
-        original_data = np.append(original_data, random.randint(0, 255))
-        print(f"0b{original_data[i]:08b}")
-    ofdm_mod = OFDM_Modulation()
-    t, x, ifft_t, ifft_x, no_carrier_signal = ofdm_mod.calculate(original_data)
-    fig = plt.figure()
-    plt.plot(ifft_t, ifft_x)
-    plt.title("入力信号をIFFTした結果")
-    plt.xlabel("時間[s]")
-    plt.ylabel("振幅")
+    def single_signal():
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        original_data = np.array([], dtype=np.int64)
+        for i in range(12):
+            original_data = np.append(original_data, random.randint(0, 255))
+            print(f"0b{original_data[i]:08b}")
+        ofdm_mod = OFDM_Modulation()
+        t, x, ifft_t, ifft_x = ofdm_mod.calculate(original_data)
+        plt.figure()
+        plt.plot(ifft_t, ifft_x)
+        plt.title("入力信号をIFFTした結果")
+        plt.xlabel("時間[s]")
+        plt.ylabel("振幅")
 
-    plt.figure()
-    plt.plot(t, x)
-    plt.title("IFFTした結果に搬送波をかけ合わせた結果")
-    plt.xlabel("時間[s]")
-    plt.ylabel("振幅")
+        plt.figure()
+        plt.plot(t, x)
+        plt.title("IFFTした結果に搬送波をかけ合わせた結果")
+        plt.xlabel("時間[s]")
+        plt.ylabel("振幅")
 
-    ofdm_demod = OFDM_Demodulation()
-    ans_data, f, X, _t, _x, __x = ofdm_demod.calculate(t, x)
-    # ans_data, f, X, _t, _x, __x = ofdm_demod.calculate_no_carrier(t, no_carrier_signal)
+        ofdm_demod = OFDM_Demodulation()
+        ans_data, f, X, _t, _x, __x = ofdm_demod.calculate(t, x)
+        # ans_data, f, X, _t, _x, __x = ofdm_demod.calculate_no_carrier(ifft_t, ifft_x)
 
-    assert len(original_data) == len(ans_data)
-    for i in range(len(original_data)):
-        assert (
-            original_data[i] == ans_data[i]
-        ), f"original = {original_data[i]}, answer = {ans_data[i]}"
-        print(f"original = {original_data[i]}, answer = {ans_data[i]}")
-    for i in range(len(X)):
-        print(f"f = {f[i]}, X = {X[i]:.3f}")
+        assert len(original_data) == len(ans_data)
+        for i in range(len(original_data)):
+            assert (
+                original_data[i] == ans_data[i]
+            ), f"original = {original_data[i]}, answer = {ans_data[i]}"
+            print(f"original = {original_data[i]}, answer = {ans_data[i]}")
+        for i in range(len(X)):
+            print(f"f = {f[i]}, X = {X[i]:.3f}")
 
-    plt.figure()
-    plt.plot(_t, _x.real)
-    plt.title("受信信号に同期検波を行った結果")
-    plt.xlabel("時間[s]")
-    plt.ylabel("振幅")
+        plt.figure()
+        plt.plot(_t, _x.real)
+        plt.title("受信信号に同期検波を行った結果")
+        plt.xlabel("時間[s]")
+        plt.ylabel("振幅")
 
-    plot_f = np.fft.fftshift(f)
-    plot_X = np.fft.fftshift(X.real)
+        plot_f = np.fft.fftshift(f)
+        plot_X = np.fft.fftshift(X.real)
 
-    plt.figure()
-    plt.plot(plot_f, plot_X)
-    plt.title("受信信号をFFTした結果")
-    plt.xlabel("周波数[Hz]")
-    plt.ylabel("振幅")
+        plt.figure()
+        plt.plot(plot_f, plot_X)
+        plt.title("受信信号をFFTした結果")
+        plt.xlabel("周波数[Hz]")
+        plt.ylabel("振幅")
 
-    plt.show()
+        plt.show()
+
+    def multi_signal():
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        original_data = np.array([], dtype=np.int64)
+        # original_data = np.array(
+        # [74, 158, 10, 179, 20, 195, 120, 202, 43, 101, 141, 208], dtype=np.int64
+        # )
+        for i in range(12):
+            original_data = np.append(original_data, random.randint(0, 255))
+            print(f"{original_data[i]}")
+        ofdm_mod = OFDM_Modulation()
+        ifft_t, ifft_x = ofdm_mod.calculate_no_carrier(original_data)
+        print("ifft")
+        print(len(ifft_t))
+        t16 = np.zeros(len(ifft_t) * 16)
+        x16 = np.zeros(len(ifft_x) * 16, dtype=np.complex128)
+        dt = 1 / SAMPLING_FREQUENCY
+        for i in range(len(t16)):
+            t16[i] = i * dt
+            x16[i] = ifft_x[i % N]
+        # for i in range(N):
+        # x16[i] = 0
+        # x16[10 * N + i] = 0
+        sync = Synchronization()
+        signal_index, R, index = sync.calculate(x16)
+        print("signal index")
+        print(signal_index)
+        for i in range(len(R)):
+            print(f"index = {index[i]}, ,abs = {abs(R[i]):.3f} R = {R[i]}")
+        # 復調
+        demod = OFDM_Demodulation()
+        for i in range(len(signal_index)):
+            demod_t = np.arange(N) * dt
+            demod_x = np.zeros(N, dtype=np.complex128)
+            for j in range(N):
+                demod_x[j] = x16[signal_index[i] + j]
+                # demod_x[j] = x16[j]
+            ans_data, f, X, _t, _x, __x = demod.calculate_no_carrier(demod_t, demod_x)
+
+            print("ans")
+            print(ans_data)
+
+            plot_f = np.fft.fftshift(f)
+            plot_X = np.fft.fftshift(X.real)
+            # """
+            plt.figure()
+            plt.plot(plot_f, plot_X)
+            plt.title("受信信号をFFTした結果")
+            plt.xlabel("周波数[Hz]")
+            plt.ylabel("振幅")
+
+            plt.figure()
+            plt.plot(demod_t, demod_x)
+            # """
+
+            """
+            for j in range(len(original_data)):
+                assert (
+                    original_data[j] == ans_data[j]
+                ), f"original = {original_data[j]}, answer = {ans_data[j]}"
+                print(f"original = {original_data[j]}, answer = {ans_data[j]}")
+            """
+            break
+        print("demod ok")
+        # """
+        plt.figure()
+        plt.plot(t16, x16)
+        plt.figure()
+        plt.plot(index, R.real)
+        plt.show()
+        # """
+
+    # main
+    # single_signal()
+    multi_signal()

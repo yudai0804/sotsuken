@@ -61,6 +61,8 @@ def my_bit_reverse(x):
 
 
 def my_fft(_x):
+    # TODO: 要素数が2^N出なかった場合でも動くようにする
+    # logを使う実装だと、FPGAに移植するときに都合が悪いので他のアルゴリズムにする。
     """
     非再帰FFT
     """
@@ -95,6 +97,7 @@ def my_fft(_x):
 
 
 def my_ifft(_X: np.ndarray):
+    # TODO: 要素数が2^N出なかった場合でも動くようにする
     X = _X.copy()
     for i in range(N):
         X[i] = X[i].conj()

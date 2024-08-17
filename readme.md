@@ -1,6 +1,11 @@
 OFDMする
 
+# 環境
+- Linux
+- Python3.11
+
 # メモ
+
 venvをactivate
 ```
 source .venv/bin/activate
