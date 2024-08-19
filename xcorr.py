@@ -1,4 +1,6 @@
 import numpy as np
+import math
+import scipy
 
 
 def xcorr(x: np.ndarray, y: np.ndarray = []):
@@ -74,8 +76,47 @@ def xcorr(x: np.ndarray, y: np.ndarray = []):
     return R, np.arange(len(R)) - len(R) // 2
 
 
+def correlate(x: np.ndarray, y: np.ndarray = []):
+    """
+    numpy.correlate(mode="full") scipy.signal.correlate()準拠の相関を求める関数
+    FFTを用いて計算する。
+    len(y) == 0の場合、xの自己相関関数を求めるようにする。
+    """
+
+    if len(y) == 0:
+        y = x
+    l_corr = len(x) + len(y) - 1
+    # FFTに入力する用の要素数が2の冪乗の配列を作成
+    l_fft = 2 ** math.ceil(math.log2(l_corr))
+    x1 = np.zeros(l_fft, dtype=np.complex128)
+    y1 = np.zeros(l_fft, dtype=np.complex128)
+    # 0でpadding
+    for i in range(len(x)):
+        x1[len(y) - 1 + i] = x[i]
+    for i in range(len(y)):
+        y1[i] = y[i]
+
+    X1 = np.fft.fft(x1)
+    Y1 = np.fft.fft(y1)
+    R1 = np.fft.ifft(X1 * Y1.conj())
+
+    # 必要な部分のみを切り取る
+    R = np.zeros(l_corr, dtype=np.complex128)
+    for i in range(len(R)):
+        R[i] = R1[i]
+
+    return R
+
+
 if __name__ == "__main__":
     x = np.array([2, 3, 4, 5], dtype=np.complex128)
-    y = np.array([3, 4, 5, 7], dtype=np.complex128)
-    ans, index = xcorr(x, y)
-    print(ans)
+    y = np.array([3, 4, 5, 7, 8], dtype=np.complex128)
+    # x = np.array([3, 4, 5, 6, 7, 8, 9, 10], dtype=np.complex128)
+    # y = np.array([1, 2, 3, 4, 5, 6, 7, 8], dtype=np.complex128)
+
+    my = correlate(x, y)
+    s = scipy.signal.correlate(x, y)
+    assert len(my) == len(s)
+    for i in range(len(my)):
+        print(f"my = {my[i]}, s = {s[i]}")
+        assert abs(my[i] - s[i]) < 1e-10
