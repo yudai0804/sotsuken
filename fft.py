@@ -2,15 +2,30 @@ import numpy as np
 import cmath
 import math
 
-N = 256
-
 
 def dft(x):
+    N = len(x)
     X = np.zeros(N, dtype=np.complex128)
     for i in range(N):
         for j in range(N):
             X[i] += x[j] * np.exp(-2j * np.pi * i * j / N)
     return X
+
+
+def check_is_pow2(x: int):
+    i = 1
+    while i < x:
+        i *= 2
+    return i == x
+
+
+def log2_int(x: int):
+    assert check_is_pow2(x) == True
+    ans = 0
+    while x // 2 != 0:
+        x = x // 2
+        ans += 1
+    return ans
 
 
 def fft_recursion(x):
@@ -38,39 +53,18 @@ def fft_recursion(x):
     return x
 
 
-def my_bit_reverse(x):
-    y = [0] * len(x)
-    msb = 0
-    for i in range(len(x)):
-        for j in range(32):
-            if x[i] & (0x01 << j):
-                msb = max(msb, j)
-    msb += 1
-    """
-    for i in range(len(x)):
-        for j in range(msb):
-            if x[i] & (0x01 << j):
-                y[i] |= 1 << (msb - 1 - j)
-    """
-    # """
-    for i in range(len(x)):
-        for j in range(msb):
-            y[i] |= ((x[i] & (0x01 << j)) >> j) << (msb - 1 - j)
-    # """
-    return y
-
-
-def my_fft(_x):
-    # TODO: 要素数が2^N出なかった場合でも動くようにする
-    # logを使う実装だと、FPGAに移植するときに都合が悪いので他のアルゴリズムにする。
+def fft(_x):
     """
     非再帰FFT
     """
     # 参照渡しになってしまうと扱いにくいのでコピー
     x = _x.copy()
+    N = len(x)
+    assert check_is_pow2(N) == True
+
     # reverse
-    bit: int = int(math.log2(len(x)))
-    for i in range(len(x)):
+    bit: int = log2_int(N)
+    for i in range(N):
         k = 0
         for j in range(bit):
             k |= ((i & (0x01 << j)) >> j) << (bit - 1 - j)
@@ -96,12 +90,13 @@ def my_fft(_x):
     return x
 
 
-def my_ifft(_X: np.ndarray):
-    # TODO: 要素数が2^N出なかった場合でも動くようにする
+def ifft(_X: np.ndarray):
     X = _X.copy()
+    N = len(X)
+    assert check_is_pow2(N) == True
     for i in range(N):
         X[i] = X[i].conj()
-    ans = my_fft(X)
+    ans = fft(X)
     for i in range(N):
         ans[i] /= N
         ans[i] = ans[i].conj()
@@ -112,20 +107,21 @@ if __name__ == "__main__":
 
     import random
 
+    N = 256
     a = np.zeros(N, dtype=np.complex128)
     for i in range(N):
         a[i] = random.random() + 1j * random.random()
 
-    b = np.fft.fft(a, N)
-    c = my_fft(np.array(a, dtype=np.complex128))
-    print("fft")
-    for i in range(N):
-        print(f"i = {i}, numpy_fft = {b[i]:.3f}, my_fft = {c[i]:.3f}")
-        assert abs(b[i] - c[i]) <= 1e-10
+    B = np.fft.fft(a)
+    b = np.fft.ifft(a)
 
-    d = np.fft.ifft(a, N)
-    e = my_ifft(np.array(a, dtype=np.complex128))
-    print("ifft")
+    C = fft(a)
+    c = ifft(a)
+
     for i in range(N):
-        print(f"i = {i}, numpy_ifft = {d[i]:.3f}, my_ifft = {e[i]:.3f}")
-        assert abs(d[i] - e[i]) <= 1e-10
+        assert abs(B[i] - C[i]) < 1e-10
+
+    for i in range(N):
+        assert abs(b[i] - c[i]) < 1e-10
+
+    print("program ok")
