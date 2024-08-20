@@ -245,16 +245,6 @@ class OFDM_Demodulation:
             ans_X[j] = X[i] - pilot_diff
             i += 1
             j += 1
-        """
-        print("signal start")
-
-        for i in range(SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL):
-            print(
-                f"f={ans_f[i]}, X={ans_X[i].real:.3f}, arg={cmath.phase(ans_X[i]):.3f}"
-            )
-
-        print("signal end")
-        """
 
         return ans_f, ans_X
 
@@ -302,7 +292,7 @@ class OFDM_Demodulation:
 class Synchronization:
     def __init__(self):
         self.INTEGRATION_THRESHOLD_HIGH = 0.1
-        self.INTEGRATION_THRESHOLD_LOW = 0.01
+        self.INTEGRATION_THRESHOLD_LOW = 0.0001
         self.BUFFER_LENGTH = 16 * N
         self.CORR_THRESHOLD = 0.15
 
@@ -342,20 +332,22 @@ class Synchronization:
         for i in range(N):
             x_one_cycle[i] = x[offset + i]
         # 相互相関関数を求める
-        R, index = xcorr.xcorr(x_signal, x_one_cycle)
+        R = scipy.signal.correlate(x_signal, x_one_cycle)
 
         signal_index = np.array([], int)
-        last_detect = -1
-        for i in range(len(R) // 2, len(R)):
+        # 相関のシフトがゼロの位置
+        zero_position = len(x_one_cycle) - 1
+        last_detect = zero_position
+        for i in range(zero_position, len(R)):
             if R[i].real > self.CORR_THRESHOLD:
                 # オフセット分ずらす
-                signal_index = np.append(signal_index, index[i] + offset)
-                last_detect = index[i]
+                signal_index = np.append(signal_index, i - zero_position + offset)
+                last_detect = i
             # 1周期ちょっと離れても、信号が見つからない場合は終了
-            if index[i] - last_detect > 300:
+            if i - last_detect > 300:
                 break
 
-        return signal_index, R, index
+        return signal_index, R, np.arange(len(R)) - zero_position
 
 
 if __name__ == "__main__":
@@ -435,9 +427,9 @@ if __name__ == "__main__":
         for i in range(len(t16)):
             t16[i] = i * dt
             x16[i] = ifft_x[i % N]
-        # for i in range(N):
-        # x16[i] = 0
-        # x16[10 * N + i] = 0
+        for i in range(N):
+            x16[i] = 0
+            x16[10 * N + i] = 0
         sync = Synchronization()
         signal_index, R, index = sync.calculate(x16)
         print("signal index")
@@ -459,7 +451,7 @@ if __name__ == "__main__":
 
             plot_f = np.fft.fftshift(f)
             plot_X = np.fft.fftshift(X.real)
-            # """
+            """
             plt.figure()
             plt.plot(plot_f, plot_X)
             plt.title("受信信号をFFTした結果")
@@ -468,7 +460,6 @@ if __name__ == "__main__":
 
             plt.figure()
             plt.plot(demod_t, demod_x)
-            # """
 
             """
             for j in range(len(original_data)):
@@ -476,17 +467,20 @@ if __name__ == "__main__":
                     original_data[j] == ans_data[j]
                 ), f"original = {original_data[j]}, answer = {ans_data[j]}"
                 print(f"original = {original_data[j]}, answer = {ans_data[j]}")
-            """
-            break
-        print("demod ok")
-        # """
+            print("demod ok")
+
+            # """
+            # break
+        """
         plt.figure()
         plt.plot(t16, x16)
         plt.figure()
         plt.plot(index, R.real)
         plt.show()
-        # """
+        """
 
     # main
     # single_signal()
-    multi_signal()
+    for i in range(30):
+        print("cnt=", i)
+        multi_signal()
