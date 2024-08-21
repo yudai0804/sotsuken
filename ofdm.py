@@ -291,63 +291,72 @@ class OFDM_Demodulation:
 
 class Synchronization:
     def __init__(self):
-        self.INTEGRATION_THRESHOLD_HIGH = 0.1
-        self.INTEGRATION_THRESHOLD_LOW = 0.0001
+        self.EDGE_THRESHOLD = 0.1
         self.BUFFER_LENGTH = 16 * N
         self.CORR_THRESHOLD = 0.15
+        self.ONE_CYCLE_BUFFER_LENGTH = 270
 
     def calculate(self, x: np.ndarray):
         assert len(x) == self.BUFFER_LENGTH, "length error"
 
         sum = 0
         offset = -1
-        # 積分して信号を探す
-        # 台形近似を行う場合、2点のデータが必要になって面倒なので、単純に足し合わせる。
+        # なんちゃって積分をして信号の立ち上がりを探す
         for i in range(len(x)):
-            # 真面目に積分するならdtかけないといけないが、dtをかけると値が小さくて扱いにくいのでやらない。
-            # sum += abs(x[i]) * dt
             sum += abs(x[i])
-            if sum >= self.INTEGRATION_THRESHOLD_HIGH:
+            if sum >= self.EDGE_THRESHOLD:
                 offset = i
                 break
 
         # 積分した結果、信号を見つけられなかった場合
         assert offset != -1, "can not find signal."
 
-        # 時を戻して、オフセットを正確な値に近づける。
-        for i in reversed(range(offset + 1)):
-            sum -= abs(x[i])
-            if sum <= self.INTEGRATION_THRESHOLD_LOW:
-                offset = i
-                break
+        print("offset = ", offset)
 
-        # 信号部分のみを切り取る
-        x_signal = np.zeros(self.BUFFER_LENGTH, dtype=np.complex128)
-        for i in range(self.BUFFER_LENGTH):
+        # 相互相関関数を求めるために、1周期だけを切り取る
+        # 積分だけでは正確な立ち上がりは検出できないため、少し多めに読む
+        # x_one_cycle = np.zeros(self.ONE_CYCLE_BUFFER_LENGTH, dtype=np.complex128)
+        x_one_cycle = np.zeros(self.BUFFER_LENGTH, dtype=np.complex128)
+        l_diff = self.ONE_CYCLE_BUFFER_LENGTH - N
+
+        for i in range(l_diff):
+            if offset - i < 0:
+                break
+            x_one_cycle[l_diff - i - 1] = x[offset - i - 1]
+        for i in range(N):
             if offset + i >= self.BUFFER_LENGTH:
                 break
-            x_signal[i] = x[offset + i]
-        # 相互相関関数を求めるために、信号1周期だけを切り取る
-        x_one_cycle = np.zeros(N, dtype=np.complex128)
-        for i in range(N):
-            x_one_cycle[i] = x[offset + i]
-        # 相互相関関数を求める
-        R = scipy.signal.correlate(x_signal, x_one_cycle)
+            x_one_cycle[l_diff + i] = x[offset + i]
+
+        # for i in range(len(x_one_cycle)):
+        # print(f"i = {i}, x_one_cycle = {x_one_cycle[i]}")
+
+        # 相関を求める
+        R = scipy.signal.correlate(x, x_one_cycle)
+        print("len(R) = ", len(R))
 
         signal_index = np.array([], int)
         # 相関のシフトがゼロの位置
         zero_position = len(x_one_cycle) - 1
-        last_detect = zero_position
-        for i in range(zero_position, len(R)):
+        last_detect = -1
+        for i in range(len(R)):
             if R[i].real > self.CORR_THRESHOLD:
                 # オフセット分ずらす
-                signal_index = np.append(signal_index, i - zero_position + offset)
+                signal_index = np.append(
+                    signal_index,
+                    # i - zero_position + l_diff - offset,
+                    # signal_index,
+                    i - (N - 1 + offset % N),
+                    # i - N,
+                )
+                print(f"si = {signal_index[-1]}, index = {i-len(R)//2}")
                 last_detect = i
             # 1周期ちょっと離れても、信号が見つからない場合は終了
-            if i - last_detect > 300:
+            if last_detect != -1 and i - last_detect > 300:
                 break
 
-        return signal_index, R, np.arange(len(R)) - zero_position
+        # return signal_index, R, np.arange(len(R)) - zero_position
+        return signal_index, R, np.arange(len(R)) - len(R) // 2
 
 
 if __name__ == "__main__":
@@ -379,8 +388,12 @@ if __name__ == "__main__":
         plt.ylabel("振幅")
 
         ofdm_demod = OFDM_Demodulation()
-        ans_data, f, X, _t, _x, __x = ofdm_demod.calculate(t, x)
-        # ans_data, f, X, _t, _x, __x = ofdm_demod.calculate_no_carrier(ifft_t, ifft_x)
+        # ans_data, f, X, _t, _x, __x = ofdm_demod.calculate(t, x)
+        # 雑音を加える
+        gain = 0.0001
+        for i in range(len(ifft_x)):
+            ifft_x += gain * (random.random() + 1j * random.random())
+        ans_data, f, X, _t, _x, __x = ofdm_demod.calculate_no_carrier(ifft_t, ifft_x)
 
         assert len(original_data) == len(ans_data)
         for i in range(len(original_data)):
@@ -419,8 +432,10 @@ if __name__ == "__main__":
             print(f"{original_data[i]}")
         ofdm_mod = OFDM_Modulation()
         ifft_t, ifft_x = ofdm_mod.calculate_no_carrier(original_data)
-        print("ifft")
-        print(len(ifft_t))
+        # 雑音を加える
+        # gain = 0.0001
+        # for i in range(len(ifft_x)):
+        # ifft_x += gain * (random.random() + 1j * random.random())
         t16 = np.zeros(len(ifft_t) * 16)
         x16 = np.zeros(len(ifft_x) * 16, dtype=np.complex128)
         dt = 1 / SAMPLING_FREQUENCY
@@ -428,14 +443,24 @@ if __name__ == "__main__":
             t16[i] = i * dt
             x16[i] = ifft_x[i % N]
         for i in range(N):
-            x16[i] = 0
+            # x16[i] = 0
             x16[10 * N + i] = 0
+        tmp = np.zeros(len(x16), dtype=np.complex128)
+        shift = 100
+        # shift = 0
+        for i in range(len(x16)):
+            if i + shift >= len(x16):
+                break
+            tmp[i + shift] = x16[i]
+        x16 = tmp.copy()
+        print("hello")
         sync = Synchronization()
         signal_index, R, index = sync.calculate(x16)
         print("signal index")
         print(signal_index)
         for i in range(len(R)):
-            print(f"index = {index[i]}, ,abs = {abs(R[i]):.3f} R = {R[i]}")
+            # print(f"index = {index[i]}, ,abs = {abs(R[i]):.3f} R = {R[i]}")
+            print(f"index = {i}, ,abs = {abs(R[i]):.3f} R = {R[i]}")
         # 復調
         demod = OFDM_Demodulation()
         for i in range(len(signal_index)):
@@ -443,7 +468,6 @@ if __name__ == "__main__":
             demod_x = np.zeros(N, dtype=np.complex128)
             for j in range(N):
                 demod_x[j] = x16[signal_index[i] + j]
-                # demod_x[j] = x16[j]
             ans_data, f, X, _t, _x, __x = demod.calculate_no_carrier(demod_t, demod_x)
 
             print("ans")
@@ -462,6 +486,7 @@ if __name__ == "__main__":
             plt.plot(demod_t, demod_x)
 
             """
+            """
             for j in range(len(original_data)):
                 assert (
                     original_data[j] == ans_data[j]
@@ -469,18 +494,64 @@ if __name__ == "__main__":
                 print(f"original = {original_data[j]}, answer = {ans_data[j]}")
             print("demod ok")
 
-            # """
+            """
             # break
-        """
+        # """
         plt.figure()
-        plt.plot(t16, x16)
+        # plt.plot(t16, x16)
+        plt.plot(np.arange(len(t16)), x16)
         plt.figure()
+        # plt.plot(index, R.real)
+        plt.plot(np.arange(len(R)), R.real)
+        plt.show()
+        # """
+
+    def corr_test():
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        original_data = np.array([], dtype=np.int64)
+        for i in range(12):
+            original_data = np.append(original_data, random.randint(0, 255))
+            print(f"{original_data[i]}")
+        ofdm_mod = OFDM_Modulation()
+        ifft_t, ifft_x = ofdm_mod.calculate_no_carrier(original_data)
+        t16 = np.zeros(len(ifft_t) * 16)
+        x16 = np.zeros(len(ifft_x) * 16, dtype=np.complex128)
+        dt = 1 / SAMPLING_FREQUENCY
+        for i in range(len(t16)):
+            t16[i] = i * dt
+            x16[i] = ifft_x[i % N]
+        for i in range(N):
+            # x16[i] = 0
+            x16[10 * N + i] = 0
+        tmp = np.zeros(len(x16), dtype=np.complex128)
+        shift = 100
+        # shift = 0
+        for i in range(len(x16)):
+            if i + shift >= len(x16):
+                break
+            tmp[i + shift] = x16[i]
+        x16 = tmp.copy()
+        sync = Synchronization()
+        signal_index, R, index = sync.calculate(x16)
+        print("signal index")
+        print(signal_index)
+        for i in range(len(R)):
+            # print(f"index = {index[i]}, ,abs = {abs(R[i]):.3f} R = {R[i]}")
+            print(f"index = {i}, ,abs = {abs(R[i]):.3f} R = {R[i]}")
+        # 復調
+        plt.figure()
+        # plt.plot(t16, x16)
+        plt.plot(np.arange(len(t16)), x16)
+        plt.figure()
+        # plt.plot(index, R.real)
         plt.plot(index, R.real)
         plt.show()
-        """
+        # """
 
     # main
+    corr_test()
     # single_signal()
-    for i in range(30):
-        print("cnt=", i)
-        multi_signal()
+    # exit()
+    # for i in range(1):
+    # print("cnt=", i)
+    # multi_signal()
