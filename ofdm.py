@@ -101,6 +101,9 @@ class OFDM_Modulation:
                 phase[i] = bpsk_phase[j]
                 j += 1
         X = A * np.exp(1j * phase)
+        # 負の周波数に正の周波数のスペクトルをコピー
+        for i in range(N // 2):
+            X[i + N // 2] = X[N // 2 - i - 1]
         return X
 
     def __ifft(self, X: np.ndarray) -> np.ndarray:
