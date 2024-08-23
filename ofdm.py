@@ -493,50 +493,6 @@ def multi_signal():
     """
 
 
-def corr_test():
-    original_data = np.array([], dtype=int)
-    for i in range(12):
-        original_data = np.append(original_data, random.randint(0, 255))
-        print(f"{original_data[i]}")
-    ofdm_mod = OFDM_Modulation()
-    ifft_t, ifft_x = ofdm_mod.calculate_no_carrier(original_data)
-    # 雑音を加える
-    gain = 0.0001
-    # gain = 0
-    for i in range(len(ifft_x)):
-        ifft_x[i] += gain * (random.random() + 1j * random.random())
-    t16 = np.zeros(len(ifft_t) * 16)
-    x16 = np.zeros(len(ifft_x) * 16, dtype=np.complex128)
-    dt = 1 / SAMPLING_FREQUENCY
-    for i in range(len(t16)):
-        t16[i] = i * dt
-        x16[i] = ifft_x[i % N]
-    for i in range(N):
-        # x16[i] = 0
-        x16[10 * N + i] = 0
-    tmp = np.zeros(len(x16), dtype=np.complex128)
-    shift = 100
-    for i in range(len(x16)):
-        if i + shift >= len(x16):
-            break
-        tmp[i + shift] = x16[i]
-    x16 = tmp.copy()
-    sync = Synchronization()
-    signal_index, R, index = sync.calculate(x16)
-    print("signal index")
-    print(signal_index)
-    # 復調
-    plt.figure()
-    # plt.plot(t16, x16)
-
-    plt.plot(np.arange(len(t16)), x16)
-    plt.figure()
-    # plt.plot(index, R.real)
-    plt.plot(index, R.real)
-    plt.show()
-    # """
-
-
 if __name__ == "__main__":
     # matplotlibを使ったときにctrl cで停止できるようにする
     # 参考:https://stackoverflow.com/questions/67977761/how-to-make-plt-show-responsive-to-ctrl-c
