@@ -3,6 +3,10 @@ OFDMする
 # 環境
 - Linux
 - Python3.11
+  - numpy
+  - scipy
+  - matplotlib
+  - matplotlib-fontja
 
 # メモ
 
