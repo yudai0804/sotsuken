@@ -1,5 +1,3 @@
-OFDMする
-
 # 環境
 - Linux
 - Python3.11
@@ -8,7 +6,13 @@ OFDMする
   - matplotlib
   - matplotlib-fontja
 
-# メモ
+# setup
+
+venv環境作成
+```
+cd ofdm-simulation
+python3 -m venv .venv
+```
 
 venvをactivate
 ```
