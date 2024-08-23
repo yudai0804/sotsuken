@@ -527,7 +527,7 @@ def corr_test():
     print(signal_index)
     # 復調
     plt.figure()
-    # plt.plot(t16, x16)    signal.signal(signal.SIGINT, signal.SIG_DFL)
+    # plt.plot(t16, x16)
 
     plt.plot(np.arange(len(t16)), x16)
     plt.figure()
