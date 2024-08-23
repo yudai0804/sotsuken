@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 import cmath
 import bisect
 import math
-import xcorr
+import sys
+import random
 
 # japanize-matplotlibの代替(Python3.12以降はjapanize-matplotlibは動かないらしいので)
 import matplotlib_fontja
@@ -111,7 +112,6 @@ class OFDM_Modulation:
         返り値はt,x
         ただし、tは実際の時間ではなくて0~N-1なので注意。
         """
-        # TODO: 返り値の時刻データが美しくないので後で直す。あと、復調のプログラムとの対象性がない
         x = np.fft.ifft(X, N)
         return np.arange(N), x
 
@@ -294,72 +294,247 @@ class OFDM_Demodulation:
 
 class Synchronization:
     def __init__(self):
-        self.EDGE_THRESHOLD = 0.1
+        self.MINIMUM_VOLTAGE = 0.001
+        self.EDGE_THRESHOLD = 0.05
         self.BUFFER_LENGTH = 16 * N
-        self.CORR_THRESHOLD = 0.15
-        self.ONE_CYCLE_BUFFER_LENGTH = 270
+        self.CORRELATE_THRESHOLD = 0.5
+        self.ONE_CYCLE_BUFFER_LENGTH = N
+
+        self.__is_detect_signal = False
 
     def calculate(self, x: np.ndarray):
         assert len(x) == self.BUFFER_LENGTH, "length error"
 
         sum = 0
-        offset = -1
-        # なんちゃって積分をして信号の立ち上がりを探す
+        offset: int = -1
+        # 積分をして信号の立ち上がりを探す
         for i in range(len(x)):
+            # 電圧が小さい場合は無信号時のノイズなのでcontinue
+            if abs(x[i]) < self.MINIMUM_VOLTAGE:
+                continue
             sum += abs(x[i])
             if sum >= self.EDGE_THRESHOLD:
                 offset = i
                 break
 
         # 積分した結果、信号を見つけられなかった場合
-        assert offset != -1, "can not find signal."
+        if offset == -1:
+            self.__is_detect_signal = False
+            return np.array([]), np.array([]), np.array([])
 
-        print("offset = ", offset)
+        # 正確な立ち上がり時間を求めるために前の時間を探索
+        cnt = 0
+        while offset > 0 and cnt < 10:
+            sum -= abs(x[offset])
+            if sum < self.MINIMUM_VOLTAGE:
+                break
+            offset -= 1
+            cnt += 1
 
         # 相互相関関数を求めるために、1周期だけを切り取る
         # 積分だけでは正確な立ち上がりは検出できないため、少し多めに読む
-        # x_one_cycle = np.zeros(self.ONE_CYCLE_BUFFER_LENGTH, dtype=np.complex128)
-        x_one_cycle = np.zeros(self.BUFFER_LENGTH, dtype=np.complex128)
-        l_diff = self.ONE_CYCLE_BUFFER_LENGTH - N
-
-        for i in range(l_diff):
-            if offset - i < 0:
-                break
-            x_one_cycle[l_diff - i - 1] = x[offset - i - 1]
-        for i in range(N):
-            if offset + i >= self.BUFFER_LENGTH:
-                break
-            x_one_cycle[l_diff + i] = x[offset + i]
-
-        # for i in range(len(x_one_cycle)):
-        # print(f"i = {i}, x_one_cycle = {x_one_cycle[i]}")
+        x_one_cycle = np.zeros(self.ONE_CYCLE_BUFFER_LENGTH, dtype=np.complex128)
+        for i in range(self.ONE_CYCLE_BUFFER_LENGTH):
+            x_one_cycle[i] = x[i + offset]
 
         # 相関を求める
         R = scipy.signal.correlate(x, x_one_cycle)
-        print("len(R) = ", len(R))
+        index = np.arange(len(R)) - self.ONE_CYCLE_BUFFER_LENGTH + 1
 
         signal_index = np.array([], int)
-        # 相関のシフトがゼロの位置
-        zero_position = len(x_one_cycle) - 1
         last_detect = -1
         for i in range(len(R)):
-            if R[i].real > self.CORR_THRESHOLD:
+            if R[i].real > self.CORRELATE_THRESHOLD:
                 # オフセット分ずらす
-                signal_index = np.append(
-                    signal_index,
-                    # i - zero_position + l_diff - offset,
-                    # signal_index,
-                    i - (N - 1 + offset % N),
-                    # i - N,
-                )
-                print(f"si = {signal_index[-1]}, index = {i-len(R)//2}")
+                signal_index = np.append(signal_index, index[i])
                 last_detect = i
             # 1周期ちょっと離れても、信号が見つからない場合は終了
             if last_detect != -1 and i - last_detect > 300:
                 break
 
-        # return signal_index, R, np.arange(len(R)) - zero_position
-        return signal_index, R, np.arange(len(R)) - len(R) // 2
+        self.__is_detect_signal = len(signal_index) > 0
+
+        return signal_index, R, index
+
+    def is_detect_signal(self) -> bool:
+        return self.__is_detect_signal
+
+
+def compare_np_array(a, b):
+    if len(a) != len(b):
+        return False
+    for i in range(len(a)):
+        if a[i] != b[i]:
+            return False
+    return True
+
+
+def single_signal():
+    original_data = np.array([], dtype=int)
+    for i in range(12):
+        original_data = np.append(original_data, random.randint(0, 255))
+        print(f"0b{original_data[i]:08b}")
+    ofdm_mod = OFDM_Modulation()
+    t, x, ifft_t, ifft_x = ofdm_mod.calculate(original_data)
+    plt.figure()
+    plt.plot(ifft_t, ifft_x)
+    plt.title("入力信号をIFFTした結果")
+    plt.xlabel("時間[s]")
+    plt.ylabel("振幅")
+
+    plt.figure()
+    plt.plot(t, x)
+    plt.title("IFFTした結果に搬送波をかけ合わせた結果")
+    plt.xlabel("時間[s]")
+    plt.ylabel("振幅")
+
+    ofdm_demod = OFDM_Demodulation()
+    # ans_data, f, X, _t, _x, __x = ofdm_demod.calculate(t, x)
+    # 雑音を加える
+    # gain = 0.0001
+    # for i in range(len(ifft_x)):
+    # ifft_x += gain * (random.random() + 1j * random.random())
+    ans_data, f, X, _t, _x, __x = ofdm_demod.calculate_no_carrier(ifft_t, ifft_x)
+
+    assert len(original_data) == len(ans_data)
+    for i in range(len(original_data)):
+        assert (
+            original_data[i] == ans_data[i]
+        ), f"original = {original_data[i]}, answer = {ans_data[i]}"
+        print(f"original = {original_data[i]}, answer = {ans_data[i]}")
+    for i in range(len(X)):
+        print(f"f = {f[i]}, X = {X[i]:.3f}")
+
+    plt.figure()
+    plt.plot(_t, _x.real)
+    plt.title("受信信号に同期検波を行った結果")
+    plt.xlabel("時間[s]")
+    plt.ylabel("振幅")
+
+    plot_f = np.fft.fftshift(f)
+    plot_X = np.fft.fftshift(X.real)
+
+    plt.figure()
+    plt.plot(plot_f, plot_X)
+    plt.title("受信信号をFFTした結果")
+    plt.xlabel("周波数[Hz]")
+    plt.ylabel("振幅")
+
+    plt.show()
+
+
+def multi_signal():
+    original_data = np.array([], dtype=int)
+    for i in range(12):
+        original_data = np.append(original_data, random.randint(0, 255))
+    print(original_data)
+    ofdm_mod = OFDM_Modulation()
+    ifft_t, ifft_x = ofdm_mod.calculate_no_carrier(original_data)
+    # 雑音を加える
+    gain = 0.0001
+    for i in range(len(ifft_x)):
+        ifft_x[i] += gain * (random.random() + 1j * random.random())
+    t16 = np.zeros(len(ifft_t) * 16)
+    x16 = np.zeros(len(ifft_x) * 16, dtype=np.complex128)
+    dt = 1 / SAMPLING_FREQUENCY
+    for i in range(len(t16)):
+        t16[i] = i * dt
+        x16[i] = ifft_x[i % N]
+    for i in range(N):
+        x16[9 * N + i] = 0
+    tmp = np.zeros(len(x16), dtype=np.complex128)
+    shift = random.randint(0, 3000)
+    # shift = 1000
+    print("shift = ", shift)
+    for i in range(len(x16)):
+        if i + shift >= len(x16):
+            break
+        tmp[i + shift] = x16[i]
+    x16 = tmp.copy()
+    sync = Synchronization()
+    signal_index, R, index = sync.calculate(x16)
+    if sync.is_detect_signal() == False:
+        print("no signal")
+        return
+    print("signal index = ", signal_index)
+    # 復調
+    demod = OFDM_Demodulation()
+    shift_cnt = 0
+    for i in range(len(signal_index)):
+        demod_t = np.arange(N) * dt
+        demod_x = np.zeros(N, dtype=np.complex128)
+        if signal_index[i] + N - 1 >= sync.BUFFER_LENGTH:
+            break
+        for j in range(N):
+            demod_x[j] = x16[signal_index[i] + j - shift_cnt]
+        ans_data, f, X, _t, _x, __x = demod.calculate_no_carrier(demod_t, demod_x)
+
+        # 信号がない場合はオフセットがずれている可能性があるので、少しシフトしてもう一度復調する
+        while (
+            compare_np_array(original_data, ans_data) == False
+            and shift_cnt < 5
+            and signal_index[i - shift_cnt] > 0
+        ):
+            shift_cnt += 1
+            for j in range(N):
+                demod_x[j] = x16[signal_index[i] + j - shift_cnt]
+            ans_data, f, X, _t, _x, __x = demod.calculate_no_carrier(demod_t, demod_x)
+        print("ans", ans_data)
+        assert compare_np_array(original_data, ans_data) == True
+
+    """
+    plt.figure()
+    # plt.plot(t16, x16)
+    plt.plot(np.arange(len(t16)), x16)
+    plt.figure()
+    # plt.plot(index, R.real)
+    plt.plot(np.arange(len(R)), R.real)
+    plt.show()
+    """
+
+
+def corr_test():
+    original_data = np.array([], dtype=int)
+    for i in range(12):
+        original_data = np.append(original_data, random.randint(0, 255))
+        print(f"{original_data[i]}")
+    ofdm_mod = OFDM_Modulation()
+    ifft_t, ifft_x = ofdm_mod.calculate_no_carrier(original_data)
+    # 雑音を加える
+    gain = 0.0001
+    # gain = 0
+    for i in range(len(ifft_x)):
+        ifft_x[i] += gain * (random.random() + 1j * random.random())
+    t16 = np.zeros(len(ifft_t) * 16)
+    x16 = np.zeros(len(ifft_x) * 16, dtype=np.complex128)
+    dt = 1 / SAMPLING_FREQUENCY
+    for i in range(len(t16)):
+        t16[i] = i * dt
+        x16[i] = ifft_x[i % N]
+    for i in range(N):
+        # x16[i] = 0
+        x16[10 * N + i] = 0
+    tmp = np.zeros(len(x16), dtype=np.complex128)
+    shift = 100
+    for i in range(len(x16)):
+        if i + shift >= len(x16):
+            break
+        tmp[i + shift] = x16[i]
+    x16 = tmp.copy()
+    sync = Synchronization()
+    signal_index, R, index = sync.calculate(x16)
+    print("signal index")
+    print(signal_index)
+    # 復調
+    plt.figure()
+    # plt.plot(t16, x16)    signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+    plt.plot(np.arange(len(t16)), x16)
+    plt.figure()
+    # plt.plot(index, R.real)
+    plt.plot(index, R.real)
+    plt.show()
+    # """
 
 
 if __name__ == "__main__":
@@ -367,194 +542,8 @@ if __name__ == "__main__":
     # 参考:https://stackoverflow.com/questions/67977761/how-to-make-plt-show-responsive-to-ctrl-c
     import signal
 
-    import sys
-    import random
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-    def single_signal():
-        signal.signal(signal.SIGINT, signal.SIG_DFL)
-        original_data = np.array([], dtype=np.int64)
-        for i in range(12):
-            original_data = np.append(original_data, random.randint(0, 255))
-            print(f"0b{original_data[i]:08b}")
-        ofdm_mod = OFDM_Modulation()
-        t, x, ifft_t, ifft_x = ofdm_mod.calculate(original_data)
-        plt.figure()
-        plt.plot(ifft_t, ifft_x)
-        plt.title("入力信号をIFFTした結果")
-        plt.xlabel("時間[s]")
-        plt.ylabel("振幅")
-
-        plt.figure()
-        plt.plot(t, x)
-        plt.title("IFFTした結果に搬送波をかけ合わせた結果")
-        plt.xlabel("時間[s]")
-        plt.ylabel("振幅")
-
-        ofdm_demod = OFDM_Demodulation()
-        # ans_data, f, X, _t, _x, __x = ofdm_demod.calculate(t, x)
-        # 雑音を加える
-        gain = 0.0001
-        for i in range(len(ifft_x)):
-            ifft_x += gain * (random.random() + 1j * random.random())
-        ans_data, f, X, _t, _x, __x = ofdm_demod.calculate_no_carrier(ifft_t, ifft_x)
-
-        assert len(original_data) == len(ans_data)
-        for i in range(len(original_data)):
-            assert (
-                original_data[i] == ans_data[i]
-            ), f"original = {original_data[i]}, answer = {ans_data[i]}"
-            print(f"original = {original_data[i]}, answer = {ans_data[i]}")
-        for i in range(len(X)):
-            print(f"f = {f[i]}, X = {X[i]:.3f}")
-
-        plt.figure()
-        plt.plot(_t, _x.real)
-        plt.title("受信信号に同期検波を行った結果")
-        plt.xlabel("時間[s]")
-        plt.ylabel("振幅")
-
-        plot_f = np.fft.fftshift(f)
-        plot_X = np.fft.fftshift(X.real)
-
-        plt.figure()
-        plt.plot(plot_f, plot_X)
-        plt.title("受信信号をFFTした結果")
-        plt.xlabel("周波数[Hz]")
-        plt.ylabel("振幅")
-
-        plt.show()
-
-    def multi_signal():
-        signal.signal(signal.SIGINT, signal.SIG_DFL)
-        original_data = np.array([], dtype=np.int64)
-        # original_data = np.array(
-        # [74, 158, 10, 179, 20, 195, 120, 202, 43, 101, 141, 208], dtype=np.int64
-        # )
-        for i in range(12):
-            original_data = np.append(original_data, random.randint(0, 255))
-            print(f"{original_data[i]}")
-        ofdm_mod = OFDM_Modulation()
-        ifft_t, ifft_x = ofdm_mod.calculate_no_carrier(original_data)
-        # 雑音を加える
-        # gain = 0.0001
-        # for i in range(len(ifft_x)):
-        # ifft_x += gain * (random.random() + 1j * random.random())
-        t16 = np.zeros(len(ifft_t) * 16)
-        x16 = np.zeros(len(ifft_x) * 16, dtype=np.complex128)
-        dt = 1 / SAMPLING_FREQUENCY
-        for i in range(len(t16)):
-            t16[i] = i * dt
-            x16[i] = ifft_x[i % N]
-        for i in range(N):
-            # x16[i] = 0
-            x16[10 * N + i] = 0
-        tmp = np.zeros(len(x16), dtype=np.complex128)
-        shift = 100
-        # shift = 0
-        for i in range(len(x16)):
-            if i + shift >= len(x16):
-                break
-            tmp[i + shift] = x16[i]
-        x16 = tmp.copy()
-        print("hello")
-        sync = Synchronization()
-        signal_index, R, index = sync.calculate(x16)
-        print("signal index")
-        print(signal_index)
-        for i in range(len(R)):
-            # print(f"index = {index[i]}, ,abs = {abs(R[i]):.3f} R = {R[i]}")
-            print(f"index = {i}, ,abs = {abs(R[i]):.3f} R = {R[i]}")
-        # 復調
-        demod = OFDM_Demodulation()
-        for i in range(len(signal_index)):
-            demod_t = np.arange(N) * dt
-            demod_x = np.zeros(N, dtype=np.complex128)
-            for j in range(N):
-                demod_x[j] = x16[signal_index[i] + j]
-            ans_data, f, X, _t, _x, __x = demod.calculate_no_carrier(demod_t, demod_x)
-
-            print("ans")
-            print(ans_data)
-
-            plot_f = np.fft.fftshift(f)
-            plot_X = np.fft.fftshift(X.real)
-            """
-            plt.figure()
-            plt.plot(plot_f, plot_X)
-            plt.title("受信信号をFFTした結果")
-            plt.xlabel("周波数[Hz]")
-            plt.ylabel("振幅")
-
-            plt.figure()
-            plt.plot(demod_t, demod_x)
-
-            """
-            """
-            for j in range(len(original_data)):
-                assert (
-                    original_data[j] == ans_data[j]
-                ), f"original = {original_data[j]}, answer = {ans_data[j]}"
-                print(f"original = {original_data[j]}, answer = {ans_data[j]}")
-            print("demod ok")
-
-            """
-            # break
-        # """
-        plt.figure()
-        # plt.plot(t16, x16)
-        plt.plot(np.arange(len(t16)), x16)
-        plt.figure()
-        # plt.plot(index, R.real)
-        plt.plot(np.arange(len(R)), R.real)
-        plt.show()
-        # """
-
-    def corr_test():
-        signal.signal(signal.SIGINT, signal.SIG_DFL)
-        original_data = np.array([], dtype=np.int64)
-        for i in range(12):
-            original_data = np.append(original_data, random.randint(0, 255))
-            print(f"{original_data[i]}")
-        ofdm_mod = OFDM_Modulation()
-        ifft_t, ifft_x = ofdm_mod.calculate_no_carrier(original_data)
-        t16 = np.zeros(len(ifft_t) * 16)
-        x16 = np.zeros(len(ifft_x) * 16, dtype=np.complex128)
-        dt = 1 / SAMPLING_FREQUENCY
-        for i in range(len(t16)):
-            t16[i] = i * dt
-            x16[i] = ifft_x[i % N]
-        for i in range(N):
-            # x16[i] = 0
-            x16[10 * N + i] = 0
-        tmp = np.zeros(len(x16), dtype=np.complex128)
-        shift = 100
-        # shift = 0
-        for i in range(len(x16)):
-            if i + shift >= len(x16):
-                break
-            tmp[i + shift] = x16[i]
-        x16 = tmp.copy()
-        sync = Synchronization()
-        signal_index, R, index = sync.calculate(x16)
-        print("signal index")
-        print(signal_index)
-        for i in range(len(R)):
-            # print(f"index = {index[i]}, ,abs = {abs(R[i]):.3f} R = {R[i]}")
-            print(f"index = {i}, ,abs = {abs(R[i]):.3f} R = {R[i]}")
-        # 復調
-        plt.figure()
-        # plt.plot(t16, x16)
-        plt.plot(np.arange(len(t16)), x16)
-        plt.figure()
-        # plt.plot(index, R.real)
-        plt.plot(index, R.real)
-        plt.show()
-        # """
-
-    # main
-    corr_test()
-    # single_signal()
-    # exit()
-    # for i in range(1):
-    # print("cnt=", i)
-    # multi_signal()
+    for i in range(256):
+        print("cnt=", i)
+        multi_signal()
