@@ -9,11 +9,12 @@ jobs:
     runs-on: ubuntu-latest
     container: debian:latest
     steps:
-      - name: Install require packages
-        run: apt-get update && apt-get install -y python3 python3-pip octave octave-signal
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+      - name: install octave
+        run: apt-get update && apt-get install -y octave octave-signal
       - name: pip
-        run:
-          pip install -r --break-system-packages requirements.txt
+        run: pip install -r --break-system-packages requirements.txt
       - uses: actions/checkout@v4
       - name: Run test
         run: pytest ofdm-simulation/
