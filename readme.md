@@ -1,11 +1,14 @@
-# 環境
-- Linux
-- Python3.11
+# requirements
+## ofdm-simulation
+Python3.11
   - numpy
   - scipy
   - matplotlib
   - matplotlib-fontja
+  - pytest
 
+octave(xcorr用)
+  - signal packageを使用
 # setup
 
 venv環境作成
