@@ -11,11 +11,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: install octave
         run: apt-get update && apt-get install -y octave octave-signal
-      - name: pip
+      - name: setup python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
+      - name: pip install
         run: python -m pip install --upgrade pip && pip install -r requirements.txt
       - name: Run test
         run: pytest ofdm-simulation/
