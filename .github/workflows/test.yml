@@ -2,15 +2,18 @@ name: test
 
 on:
   push:
-    paths:
-      - ofdm-simulation/**
+    # paths:
+      # - ofdm-simulation/**
 jobs:
   pytest:
-    runs-on: ubuntu-latest
-    container: ubuntu:latest
+    runs-on: debian-latest
+    container: debian:latest
     steps:
       - name: Install require packages
-        run: apt-get update && apt-get install -y python3 python3-pip octave octave-signal && pip install -r ofdm-simulation/requirements.txt
+        run: apt-get update && apt-get install -y python3 python3-pip octave octave-signal
+      - name: pip
+        run:
+          python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
       - uses: actions/checkout@v4
       - name: Run test
         run: pytest ofdm-simulation/
