@@ -7,8 +7,18 @@ on:
 jobs:
   pytest:
     runs-on: ubuntu-latest
+    container: debian:latest
+    # defaults:
+      # run:
+        # working-directory: ofdm-simulation
     steps:
       - uses: actions/checkout@v4
+      - name: install octave
+        run: apt-get update && apt-get install -y octave octave-signal
+      - name: setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       - name: pip install
         run: |
           python -m pip install --upgrade pip
