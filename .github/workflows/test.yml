@@ -6,7 +6,7 @@ on:
       # - ofdm-simulation/**
 jobs:
   pytest:
-    runs-on: debian-latest
+    runs-on: ubuntu-latest
     container: debian:latest
     steps:
       - name: Install require packages
