@@ -8,9 +8,9 @@ jobs:
   pytest:
     runs-on: ubuntu-latest
     container: debian:latest
-    defaults:
-      run:
-        working-directory: ofdm-simulation
+    # defaults:
+      # run:
+        # working-directory: ofdm-simulation
     steps:
       - uses: actions/checkout@v4
       - name: install octave
@@ -22,6 +22,6 @@ jobs:
       - name: pip install
         run: |
           python -m pip install --upgrade
-          pip install -r requirements.txt
+          pip install -r ofdm-simulation/requirements.txt
       - name: Run test
-        run: pytest
+        run: pytest ofdm-simulation/
