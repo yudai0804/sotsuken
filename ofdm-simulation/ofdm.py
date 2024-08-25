@@ -137,6 +137,7 @@ class OFDM_Modulation:
         t, x, ifft_tとifft_x
         tとxはOFDMした最終結果、
         ifft_tとifft_xはifftを行った結果(搬送波との掛け合わせは行っていない)
+        ifft_xは複素数だが、xは実数なので注意
         """
         # Xがサブキャリア数と等しいか確認
         assert len(X) * 8 == SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL, "OFDM Input Error."
@@ -186,10 +187,6 @@ class OFDM_Demodulation:
     def __quantization(self, x, bit, low, high):
         """
         量子化
-        フーリエ変換の式
-        f[x]=\frac{1}{n}\sum_{k=0}^{N-1}F[k]e^{\frac{j2\pi k x}{N}}
-        より量子化の範囲をどの程度にすればいいかがわかる。
-        今回は上限と下限は±0.5、量子化は1024段階とする
         """
         # 二分探索を用いて量子化
         y = np.zeros(len(x), dtype="complex128")

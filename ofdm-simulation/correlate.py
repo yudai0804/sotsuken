@@ -106,17 +106,3 @@ def correlate(x: np.ndarray, y: np.ndarray = []):
         R[i] = R1[i]
 
     return R
-
-
-if __name__ == "__main__":
-    x = np.array([2, 3, 4, 5], dtype=np.complex128)
-    y = np.array([3, 4, 5, 7, 8], dtype=np.complex128)
-    # x = np.array([3, 4, 5, 6, 7, 8, 9, 10], dtype=np.complex128)
-    # y = np.array([1, 2, 3, 4, 5, 6, 7, 8], dtype=np.complex128)
-
-    my = correlate(x, y)
-    s = scipy.signal.correlate(x, y)
-    assert len(my) == len(s)
-    for i in range(len(my)):
-        print(f"my = {my[i]}, s = {s[i]}")
-        assert abs(my[i] - s[i]) < 1e-10

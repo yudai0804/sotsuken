@@ -101,27 +101,3 @@ def ifft(_X: np.ndarray):
         ans[i] /= N
         ans[i] = ans[i].conj()
     return ans
-
-
-if __name__ == "__main__":
-
-    import random
-
-    N = 256
-    a = np.zeros(N, dtype=np.complex128)
-    for i in range(N):
-        a[i] = random.random() + 1j * random.random()
-
-    B = np.fft.fft(a)
-    b = np.fft.ifft(a)
-
-    C = fft(a)
-    c = ifft(a)
-
-    for i in range(N):
-        assert abs(B[i] - C[i]) < 1e-10
-
-    for i in range(N):
-        assert abs(b[i] - c[i]) < 1e-10
-
-    print("program ok")
