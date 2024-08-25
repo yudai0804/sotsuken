@@ -2,8 +2,8 @@ name: test
 
 on:
   push:
-    # paths:
-      # - ofdm-simulation/**
+    paths:
+      - ofdm-simulation/**
 jobs:
   pytest:
     runs-on: ubuntu-latest
