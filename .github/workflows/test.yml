@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     container: debian:latest
     steps:
-      working-directory: ofdm-simulation
+      - working-directory: ofdm-simulation
       - uses: actions/checkout@v4
       - name: install octave
         run: apt-get update && apt-get install -y octave octave-signal
