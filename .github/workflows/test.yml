@@ -11,7 +11,6 @@ defaults:
 jobs:
   pytest:
     runs-on: ubuntu-latest
-    container: debian:latest
     steps:
       - uses: actions/checkout@v4
       - name: Set up buildx
