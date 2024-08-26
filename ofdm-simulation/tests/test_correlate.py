@@ -130,3 +130,7 @@ def test_xcorr4():
     expected = octave_xcorr(x, y)
     result, _ = correlate.xcorr(x, y)
     npt.assert_almost_equal(expected, result)
+
+
+def test_fail():
+    assert 1 == 0
