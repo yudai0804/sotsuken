@@ -33,7 +33,6 @@ jobs:
           context: ofdm-simulation
           tags: ${{ steps.metadata.outputs.tags }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max # 全レイヤーキャッシュ
-          cache-to: type=local
+          cache-to: type=gha
       - name: Run test
         run: docker run ${{ steps.metadata.outputs.tags }} pytest
