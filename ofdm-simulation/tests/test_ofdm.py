@@ -10,9 +10,7 @@ import random
     [(False, False), (False, True), (True, False), (True, True)],
 )
 def test_single_signal(is_no_carrier, use_noise):
-    original_data = np.array([], dtype=int)
-    for i in range(12):
-        original_data = np.append(original_data, random.randint(0, 255))
+    original_data = np.random.randint(0, 255, size=12)
     ofdm_mod = OFDM_Modulation()
     t, x, ifft_t, ifft_x = ofdm_mod.calculate(original_data)
 
@@ -21,11 +19,9 @@ def test_single_signal(is_no_carrier, use_noise):
     if use_noise:
         gain = 0.0001
         if is_no_carrier:
-            for i in range(len(ifft_x)):
-                ifft_x[i] += gain * (random.random() + 1j * random.random())
+            ifft_x += gain * (np.random.rand(N) + 1j * np.random.rand(N))
         else:
-            for i in range(len(x)):
-                x[i] += gain * random.random()
+            x += gain * np.random.rand(len(x))
 
     ans_data = None
 
@@ -42,17 +38,14 @@ def test_single_signal(is_no_carrier, use_noise):
     [(False), (True)],
 )
 def test_multi_signal(use_noise):
-    original_data = np.array([], dtype=int)
-    for i in range(12):
-        original_data = np.append(original_data, random.randint(0, 255))
-    print(original_data)
+    original_data = np.random.randint(0, 255, size=12)
     ofdm_mod = OFDM_Modulation()
     ifft_t, ifft_x = ofdm_mod.calculate_no_carrier(original_data)
     # 雑音を加える
     if use_noise:
         gain = 0.0001
         for i in range(len(ifft_x)):
-            ifft_x[i] += gain * (random.random() + 1j * random.random())
+            ifft_x += gain * (np.random.rand(N) + 1j * np.random.rand(N))
     t16 = np.zeros(len(ifft_t) * 16)
     x16 = np.zeros(len(ifft_x) * 16, dtype=np.complex128)
     dt = 1 / SAMPLING_FREQUENCY
@@ -61,14 +54,11 @@ def test_multi_signal(use_noise):
         x16[i] = ifft_x[i % N]
     for i in range(N):
         x16[9 * N + i] = 0
-    tmp = np.zeros(len(x16), dtype=np.complex128)
+    # shift
     shift = random.randint(0, 3000)
     print("shift = ", shift)
-    for i in range(len(x16)):
-        if i + shift >= len(x16):
-            break
-        tmp[i + shift] = x16[i]
-    x16 = tmp.copy()
+    x16 = np.pad(x16, (shift, 0))[0 : len(x16)]
+
     sync = Synchronization()
     signal_index, R, index = sync.calculate(x16)
     if sync.is_detect_signal() == False:

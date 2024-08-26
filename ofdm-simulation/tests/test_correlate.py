@@ -21,13 +21,10 @@ def test_correlate1():
 
 def test_correlate2():
     # len(x) == len(y)のテスト
-    N = random.randint(4, 1024)
-    x = np.zeros(N, dtype=np.complex128)
-    y = np.zeros(N, dtype=np.complex128)
+    N = random.randint(4, 256)
+    x = np.random.rand(N) + 1j * np.random.rand(N)
+    y = np.random.rand(N) + 1j * np.random.rand(N)
     assert len(x) == len(y)
-    for i in range(N):
-        x[i] = random.random() + 1j * random.random()
-        y[i] = random.random() + 1j * random.random()
     expected = scipy.signal.correlate(x, y)
     result = correlate.correlate(x, y)
     npt.assert_almost_equal(expected, result)
@@ -37,13 +34,9 @@ def test_correlate3():
     # len(x) < len(y)のテスト
     Nx = random.randint(4, 100)
     Ny = random.randint(200, 300)
-    x = np.zeros(Nx, dtype=np.complex128)
-    y = np.zeros(Ny, dtype=np.complex128)
+    x = np.random.rand(Nx) + 1j * np.random.rand(Nx)
+    y = np.random.rand(Ny) + 1j * np.random.rand(Ny)
     assert len(x) < len(y)
-    for i in range(Nx):
-        x[i] = random.random() + 1j * random.random()
-    for i in range(Ny):
-        y[i] = random.random() + 1j * random.random()
     expected = scipy.signal.correlate(x, y)
     result = correlate.correlate(x, y)
     npt.assert_almost_equal(expected, result)
@@ -53,13 +46,9 @@ def test_correlate4():
     # len(x) > len(y)のテスト
     Nx = random.randint(200, 300)
     Ny = random.randint(4, 100)
-    x = np.zeros(Nx, dtype=np.complex128)
-    y = np.zeros(Ny, dtype=np.complex128)
+    x = np.random.rand(Nx) + 1j * np.random.rand(Nx)
+    y = np.random.rand(Ny) + 1j * np.random.rand(Ny)
     assert len(x) > len(y)
-    for i in range(Nx):
-        x[i] = random.random() + 1j * random.random()
-    for i in range(Ny):
-        y[i] = random.random() + 1j * random.random()
     expected = scipy.signal.correlate(x, y)
     result = correlate.correlate(x, y)
     npt.assert_almost_equal(expected, result)
@@ -110,13 +99,10 @@ def test_xcorr1():
 
 def test_xcorr2():
     # len(x) == len(y)のテスト
-    N = random.randint(4, 1024)
-    x = np.zeros(N, dtype=np.complex128)
-    y = np.zeros(N, dtype=np.complex128)
+    N = random.randint(4, 256)
+    x = np.random.rand(N) + 1j * np.random.rand(N)
+    y = np.random.rand(N) + 1j * np.random.rand(N)
     assert len(x) == len(y)
-    for i in range(N):
-        x[i] = random.random() + 1j * random.random()
-        y[i] = random.random() + 1j * random.random()
     expected = octave_xcorr(x, y)
     result, _ = correlate.xcorr(x, y)
     npt.assert_almost_equal(expected, result)
@@ -126,13 +112,9 @@ def test_xcorr3():
     # len(x) < len(y)のテスト
     Nx = random.randint(4, 100)
     Ny = random.randint(200, 300)
-    x = np.zeros(Nx, dtype=np.complex128)
-    y = np.zeros(Ny, dtype=np.complex128)
+    x = np.random.rand(Nx) + 1j * np.random.rand(Nx)
+    y = np.random.rand(Ny) + 1j * np.random.rand(Ny)
     assert len(x) < len(y)
-    for i in range(Nx):
-        x[i] = random.random() + 1j * random.random()
-    for i in range(Ny):
-        y[i] = random.random() + 1j * random.random()
     expected = octave_xcorr(x, y)
     result, _ = correlate.xcorr(x, y)
     npt.assert_almost_equal(expected, result)
@@ -142,13 +124,9 @@ def test_xcorr4():
     # len(x) > len(y)のテスト
     Nx = random.randint(200, 300)
     Ny = random.randint(4, 100)
-    x = np.zeros(Nx, dtype=np.complex128)
-    y = np.zeros(Ny, dtype=np.complex128)
+    x = np.random.rand(Nx) + 1j * np.random.rand(Nx)
+    y = np.random.rand(Ny) + 1j * np.random.rand(Ny)
     assert len(x) > len(y)
-    for i in range(Nx):
-        x[i] = random.random() + 1j * random.random()
-    for i in range(Ny):
-        y[i] = random.random() + 1j * random.random()
     expected = octave_xcorr(x, y)
     result, _ = correlate.xcorr(x, y)
     npt.assert_almost_equal(expected, result)

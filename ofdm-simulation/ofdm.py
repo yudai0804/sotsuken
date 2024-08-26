@@ -1,4 +1,5 @@
 import numpy as np
+import numpy.testing as npt
 import scipy.signal
 import scipy.interpolate
 import matplotlib.pyplot as plt
@@ -367,10 +368,8 @@ def compare_np_array(a, b):
 
 
 def single_signal():
-    original_data = np.array([], dtype=int)
-    for i in range(12):
-        original_data = np.append(original_data, random.randint(0, 255))
-        print(f"0b{original_data[i]:08b}")
+    original_data = np.random.randint(0, 255, size=12)
+    print(original_data)
     ofdm_mod = OFDM_Modulation()
     t, x, ifft_t, ifft_x = ofdm_mod.calculate(original_data)
     plt.figure()
@@ -389,8 +388,7 @@ def single_signal():
     # ans_data, f, X, _t, _x, __x = ofdm_demod.calculate(t, x)
     # 雑音を加える
     # gain = 0.0001
-    # for i in range(len(ifft_x)):
-    # ifft_x += gain * (random.random() + 1j * random.random())
+    # ifft_x += gain * (np.random.rand(N) + 1j * np.random.rand(N))
     ans_data, f, X, _t, _x, __x = ofdm_demod.calculate_no_carrier(ifft_t, ifft_x)
 
     assert len(original_data) == len(ans_data)
@@ -421,16 +419,13 @@ def single_signal():
 
 
 def multi_signal():
-    original_data = np.array([], dtype=int)
-    for i in range(12):
-        original_data = np.append(original_data, random.randint(0, 255))
+    original_data = np.random.randint(0, 255, size=12)
     print(original_data)
     ofdm_mod = OFDM_Modulation()
     ifft_t, ifft_x = ofdm_mod.calculate_no_carrier(original_data)
     # 雑音を加える
     gain = 0.0001
-    for i in range(len(ifft_x)):
-        ifft_x[i] += gain * (random.random() + 1j * random.random())
+    ifft_x += gain * (np.random.rand(N) + 1j * np.random.rand(N))
     t16 = np.zeros(len(ifft_t) * 16)
     x16 = np.zeros(len(ifft_x) * 16, dtype=np.complex128)
     dt = 1 / SAMPLING_FREQUENCY
@@ -441,13 +436,10 @@ def multi_signal():
         x16[9 * N + i] = 0
     tmp = np.zeros(len(x16), dtype=np.complex128)
     shift = random.randint(0, 3000)
-    # shift = 1000
+    # shift
+    shift = random.randint(0, 3000)
     print("shift = ", shift)
-    for i in range(len(x16)):
-        if i + shift >= len(x16):
-            break
-        tmp[i + shift] = x16[i]
-    x16 = tmp.copy()
+    x16 = np.pad(x16, (shift, 0))[0 : len(x16)]
     sync = Synchronization()
     signal_index, R, index = sync.calculate(x16)
     if sync.is_detect_signal() == False:
@@ -477,8 +469,7 @@ def multi_signal():
                 demod_x[j] = x16[signal_index[i] + j - shift_cnt]
             ans_data, f, X, _t, _x, __x = demod.calculate_no_carrier(demod_t, demod_x)
         print("ans", ans_data)
-        assert compare_np_array(original_data, ans_data) == True
-
+        npt.assert_equal(original_data, ans_data)
     """
     plt.figure()
     # plt.plot(t16, x16)
