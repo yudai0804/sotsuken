@@ -37,4 +37,4 @@ jobs:
       - name: Look up images
         run: docker image ls
       - name: Run test
-        run: docker run -it $${{ steps.metadata.outputs.tags }} pytest
+        run: docker run -it ${{ steps.metadata.outputs.tags }}:latest pytest
