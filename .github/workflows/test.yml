@@ -20,7 +20,7 @@ jobs:
         id: metadata
         uses: docker/metadata-action@v5
         with:
-          images: asia-northeast1-docker.pkg.dev
+          images: docker-ofdm-simulation
           tags: |
             type=semver,pattern={{raw}} # tag を利用
             type=sha,format=short       # sha を利用
