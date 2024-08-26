@@ -31,3 +31,18 @@ pip freeze > requirements.txt
 ```
 pip install -r requirements.txt
 ```
+
+# docker
+ビルド
+```
+cd ofdm-simulation
+docker build -t ofdm-simulation .
+```
+実行
+```
+docker run -v .:/app/ofdm-simulation ofdm-simulation:latest pytest
+```
+実行(tty)
+```
+docker run -itv .:/app/ofdm-simulation ofdm-simulation:latest pytest
+```
