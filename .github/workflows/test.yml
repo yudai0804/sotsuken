@@ -34,7 +34,6 @@ jobs:
           tags: ${{ steps.metadata.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max # 全レイヤーキャッシュ
-      - name: Look up images
-        run: docker image ls
+          cache-to: type=local
       - name: Run test
         run: docker run ${{ steps.metadata.outputs.tags }} pytest
