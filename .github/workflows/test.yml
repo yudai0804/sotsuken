@@ -37,4 +37,4 @@ jobs:
       - name: Look up images
         run: docker image ls
       - name: Run test
-        run: docker run -it asia-northeast1-docker.pkg.dev:latest pytest
+        run: docker run -it asia-northeast1-docker.pkg.dev pytest
