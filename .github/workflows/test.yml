@@ -35,4 +35,4 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha
       - name: Run test
-        run: docker run ${{ steps.metadata.outputs.tags }} pytest
+        run: docker run -v .:/app/ofdm-simulation ${{ steps.metadata.outputs.tags }} pytest
