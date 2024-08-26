@@ -5,22 +5,34 @@ on:
     paths:
       - ofdm-simulation/**
       - .github/**
+defaults:
+  run:
+    working-directory: ofdm-simulation
 jobs:
   pytest:
     runs-on: ubuntu-latest
     container: debian:latest
     steps:
       - uses: actions/checkout@v4
-      - name: cache pytest environment
-        id: cache-pytest
-        uses: actions/cache@v4
+      - name: Set up buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set metadata
+        id: metadata
+        uses: docker/metadata-action@v5
         with:
-          path: cache-pytest
-          key: ${{ runner.os }}-cache-pytest
-      - name: setup
-        if: steps.cache-pytest.outputs.cache-hit != 'true'
-        run: |
-          apt-get update && apt-get install -y octave octave-signal python3 python3-pip
-          pip install -r ofdm-simulation/requirements.txt --break-system-packages
+          images: asia-northeast1-docker.pkg.dev
+          tags: |
+            type=semver,pattern={{raw}} # tag を利用
+            type=sha,format=short       # sha を利用
+
+      - name: Build
+        uses: docker/build-push-action@v5
+        with:
+          push: false
+          tags: ${{ steps.metadata.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max # 全レイヤーキャッシュ
+
       - name: Run test
-        run: pytest ofdm-simulation/
+        run: docker run -it $${{ steps.metadata.outputs.tags }} pytest
