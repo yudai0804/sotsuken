@@ -2,9 +2,9 @@ name: test
 
 on:
   push:
-    paths: | 
-      ofdm-simulation/**
-      .github/**
+    paths:
+      - ofdm-simulation/**
+      - .github/**
 jobs:
   pytest:
     runs-on: ubuntu-latest
