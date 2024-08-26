@@ -29,6 +29,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           push: false
+          load: true
           context: ofdm-simulation
           tags: ${{ steps.metadata.outputs.tags }}
           cache-from: type=gha
