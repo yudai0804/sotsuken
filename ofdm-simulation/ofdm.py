@@ -36,7 +36,6 @@ PILOT_SIGNAL_PHASE = 0
 
 SAMPLING_FREQUENCY = 12800
 
-
 #####################
 # お気持ちパラメーター
 # 本来は搬送波はアナログフィルタで処理してしまうが、シミュレーションのためディジタルフィルタで処理する用
@@ -481,6 +480,85 @@ def multi_signal():
     """
 
 
+def multi_signal_error():
+    # 周波数がずれている場合のシミュレーション
+    N_ERROR = 256
+    original_data = np.random.randint(0, 255, size=12)
+    print(original_data)
+    ofdm_mod = OFDM_Modulation()
+    ifft_t, ifft_x = ofdm_mod.calculate_no_carrier(original_data)
+    # 雑音を加える
+    # gain = 0.0001
+    # ifft_x += gain * (np.random.rand(N) + 1j * np.random.rand(N))
+
+    # 周波数をずらす
+    fitted_t = np.linspace(0, ifft_t[-1], N_ERROR)
+    fitted = scipy.interpolate.interp1d(ifft_t, ifft_x)
+    fitted_x = fitted(fitted_t)
+
+    transmit_t = fitted_t.copy()
+    transmit_x = fitted_x.copy()
+
+    t16 = np.zeros(N * 16)
+    x16 = np.zeros(N * 16, dtype=np.complex128)
+    dt = 1 / SAMPLING_FREQUENCY
+
+    for i in range(len(t16)):
+        t16[i] = dt * i
+        x16[i] = transmit_x[i % N_ERROR]
+
+    sync = Synchronization()
+    signal_index, R, index = sync.calculate(x16)
+    if sync.is_detect_signal() == False:
+        print("no signal")
+        return
+    print("signal index = ", signal_index)
+
+    # debug用
+    assert signal_index[0] == 0
+
+    demod = OFDM_Demodulation()
+
+    # TODO: revceive_dtは通信のシンボルごとにずれる可能性があるので、一括で補正ではなくシンボルごとに補正するアルゴリズにすること
+    # TODO: サンプリング周波数の再検討を行う
+    receive_d_sample = signal_index[1] - signal_index[0]
+    for i in range(len(signal_index)):
+        receive_x = np.zeros(receive_d_sample, dtype=np.complex128)
+        receive_t = np.zeros(receive_d_sample)
+        for j in range(receive_d_sample):
+            receive_t[j] = dt * j
+            receive_x[j] = x16[j]
+
+        fitted_t_N = np.linspace(0, receive_t[-1], N)
+        fitted = scipy.interpolate.interp1d(receive_t, receive_x)
+        fitted_x_N = fitted(fitted_t_N)
+
+        plt.figure()
+        plt.plot(ifft_t * dt, ifft_x, label="ifft")
+        plt.plot(fitted_t_N, fitted_x_N, label="fitted")
+
+        plt.legend()
+
+        ans_data, f, X, _t, _x, __x = demod.calculate_no_carrier(fitted_t_N, fitted_x_N)
+
+        # npt.assert_equal(original_data, ans_data)
+        plot_f = np.fft.fftshift(f)
+        plot_X = np.fft.fftshift(X.real)
+
+        for i in range(len(plot_X)):
+            print(f"f = {plot_f[i]:.3f}, X = {plot_X[i]:.3f}")
+
+        plt.figure()
+        plt.plot(plot_f, plot_X)
+        plt.title("受信信号をFFTした結果")
+        plt.xlabel("周波数[Hz]")
+        plt.ylabel("振幅")
+
+        plt.show()
+
+        break
+
+
 if __name__ == "__main__":
     # matplotlibを使ったときにctrl cで停止できるようにする
     # 参考:https://stackoverflow.com/questions/67977761/how-to-make-plt-show-responsive-to-ctrl-c
@@ -488,6 +566,4 @@ if __name__ == "__main__":
 
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-    for i in range(256):
-        print("cnt=", i)
-        multi_signal()
+    multi_signal_error()
