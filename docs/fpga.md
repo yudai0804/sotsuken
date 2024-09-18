@@ -1,0 +1,12 @@
+- fpga
+  - tang nano 9k
+  - https://wiki.sipeed.com/hardware/en/tang/Tang-Nano-9K/Nano-9K.html
+- IDE
+  - Gowin_V1.9.9.03_Education
+    - https://wiki.sipeed.com/hardware/en/tang/Tang-Nano-Doc/install-the-ide.html
+    - example
+    - https://wiki.sipeed.com/hardware/en/tang/Tang-Nano-Doc/examples.html
+
+- Writer
+  - openFPGAloader
+    - `sudo apt install -y openfpgaloader`
