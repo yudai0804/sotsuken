@@ -108,7 +108,7 @@ class OFDM_Modulation:
             X[i + N // 2] = X[N // 2 - i - 1]
         return X
 
-    def __ifft(self, X: np.ndarray) -> np.ndarray:
+    def __ifft(self, X: np.ndarray):
         """
         返り値はt,x
         ただし、tは実際の時間ではなくて0~N-1なので注意。
