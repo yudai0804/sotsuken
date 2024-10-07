@@ -30,6 +30,7 @@ ax1.vlines(
     color="black",
     linestyle=":",
 )
+ax1.set_yticks([])
 ax1.grid(False)
 ax1.annotate(
     "Guard interval",
@@ -59,6 +60,7 @@ ax2.vlines(
     linestyle=":",
 )
 ax2.set_xticks([])
+ax2.set_yticks([])
 
 ax2.legend()
 
