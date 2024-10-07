@@ -97,7 +97,32 @@ $$x[n]=\frac{1}{N}\sum_{k=0}^{N-1}X[k] e^{j\frac{2\pi k n}{N}}=\frac{1}{N}\overl
 
 ---
 # FFTの実装(再帰)
-C++の`std::vector`などの動的確保のできる配列を使うといい感じに実装できる。
-```cpp
-
+動的確保のできる配列を使うといい感じに実装できる。
 ```
+C++かPythonで実装する
+```
+
+---
+
+# bit-reverse
+---
+
+# 再帰プログラム(cooley turkey)
+
+---
+
+# FFTプログラム(非再帰)
+
+---
+
+# 相関
+
+---
+
+# OFDM変調器の構成
+<!-- TODO:実部のみの波に変換するところ詳しく -->
+![w:1200 center](./assets/odfm-modulation-diagram.drawio.svg)
+
+---
+
+# OFDM復調器の構成
