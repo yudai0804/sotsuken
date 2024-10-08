@@ -488,6 +488,9 @@ if __name__ == "__main__":
 
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
+    single_signal()
+    exit(0)
+
     for i in range(256):
         print("cnt=", i)
         multi_signal()
