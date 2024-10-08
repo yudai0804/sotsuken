@@ -1,6 +1,6 @@
 ---
 theme: academic
-# _class: lead
+_class: lead
 # paginate: true
 backgroundColor: #ffffff
 marp: true
@@ -161,7 +161,7 @@ C++かPythonで実装する
 ---
 
 # 計算機シミュレーション
-理論の検証のため、PC上でシミュレーションを行った。
+理論の確認のため、PC上でシミュレーションを行った。
 12バイトの乱数を生成→変調→復調→確認
 という一連の流れを行った。
 
@@ -192,7 +192,7 @@ C++かPythonで実装する
 中国のSipeed社から発売されているTang Nano 9Kを使用。
 値段は秋月電子で2980円と安価。
 
-![w:700 center](./assets/TangNano9K.png)
+![w:600 center](./assets/TangNano9K.png)
 
 ---
 
@@ -204,17 +204,25 @@ C++かPythonで実装する
 
 ---
 
-**FPGAの進捗状況**
-できたこと
-- 開発環境構築
-- Lチカ
+# FPGAの進捗状況
+- できたこと
+  - 開発環境構築
+  - Lチカ
+- 今後やること
+  - シリアル通信
+  - FFT
+  - ADC
+  - 復調基板作成
+  - 復調プログラム作成
 
-今後やること
-- シリアル通信
-- FFT
-- ADC
-- 復調基板作成
-- 復調プログラム作成
 ---
 
 # 復調器の回路構成
+![center](./assets/fpga-circuit.drawio.svg)
+
+---
+
+# サンプルホールド回路
+OFDMはタイミングがシビアなので、実部と虚部のサンプリングタイミングがずれないようにするために使う。
+参考:https://akizukidenshi.com/goodsaffix/OP_AMP_APP_J_REL.pdf
+![w:650 center](./assets/sample-hold.png)
