@@ -85,8 +85,7 @@ class OFDM_Modulation:
         # all_subcarrier_number < N/2よりサブキャリアの周波数はすべて正であることが保証される。
         # 参考:https://numpy.org/doc/stable/reference/generated/numpy.fft.ifft.html
         assert all_subcarrier_number < N / 2
-        phase = np.zeros(N, dtype=np.complex128)
-        A = np.zeros(N, dtype=np.complex128)
+        X = np.zeros(N, dtype=np.complex128)
         f = np.linspace(0, SUBCARRIER_FREQUENCY_MAX, all_subcarrier_number)
         j = 0
         for i in range(
@@ -97,15 +96,17 @@ class OFDM_Modulation:
                 if f[i] == f_ps:
                     is_pilot_signal = True
             if is_pilot_signal:
-                A[i] = PILOT_SIGNAL_AMPLITUDE
+                X[i] = PILOT_SIGNAL_AMPLITUDE
             else:
-                A[i] = 1
-                phase[i] = bpsk_phase[j]
+                if bpsk_phase[j] == 0:
+                    X[i] = 1
+                else:
+                    # 位相がpiのとき
+                    X[i] = -1
                 j += 1
-        X = A * np.exp(1j * phase)
         # 負の周波数に正の周波数のスペクトルをコピー
-        for i in range(N // 2):
-            X[i + N // 2] = X[N // 2 - i - 1]
+        for i in range(1, N // 2):
+            X[N - i] = X[i]
         return X
 
     def __ifft(self, X: np.ndarray):
@@ -128,7 +129,7 @@ class OFDM_Modulation:
         # 複素平面上の極座標系から実際の波に変換
         # そのとき、ωcで変調もする
         omega_c = 2 * np.pi * fc
-        _x = fitted_x.real * np.cos(omega_c * t) + fitted_x.imag * np.sin(omega_c * t)
+        _x = fitted_x.real * np.cos(omega_c * t)
         return t, _x, fitted_x
 
     def calculate(self, X: np.ndarray, is_no_carrier=False):
@@ -275,7 +276,8 @@ class OFDM_Demodulation:
         _t, _x = self.__linear_interpolation(t, x_complex)
         # 量子化をするとDCバイアスが少しのる。
         # 量子化を細かくすればDCバイアスは小さくなる
-        __x = self.__quantization(_x, 10, -0.5, 0.5)
+        # 最大振幅(0.2)の√2倍に設定
+        __x = self.__quantization(_x, 8, -0.2 * 2**0.5, 0.2 * 2**0.5)
         f, X = self.__fft(__x)
         # f, X = self.__fft(_x)
         _f, _X = self.__pilot(f, X)
@@ -389,7 +391,8 @@ def single_signal():
     # 雑音を加える
     # gain = 0.0001
     # ifft_x += gain * (np.random.rand(N) + 1j * np.random.rand(N))
-    ans_data, f, X, _t, _x, __x = ofdm_demod.calculate_no_carrier(ifft_t, ifft_x)
+    ans_data, f, X, _t, _x, __x = ofdm_demod.calculate(t, x)
+    # ans_data, f, X, _t, _x, __x = ofdm_demod.calculate_no_carrier(ifft_t, ifft_x)
 
     assert len(original_data) == len(ans_data)
     for i in range(len(original_data)):
