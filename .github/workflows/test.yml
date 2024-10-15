@@ -1,10 +1,6 @@
 name: test
 
-on:
-  push:
-    paths:
-      - ofdm-simulation/**
-      - .github/**
+on: push
 jobs:
   pytest:
     runs-on: ubuntu-latest
