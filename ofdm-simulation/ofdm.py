@@ -53,39 +53,24 @@ cutoff: int = int(1e4)
 
 
 class OFDM_Modulation:
-    def __serial_to_parallel(
-        self, x: NDArray[np.int32], bit: int = 8
-    ) -> NDArray[np.int32]:
+    def __bpsk(self, x: NDArray[np.int32]) -> NDArray[np.int32]:
         """
-        S/P変換
-        データはMSBファーストにする
-        配列の要素1つ分は1シンボルに該当する
+        bpsk
+        1シンボル1ビット
+        ビットが1のところを1に、ビットが0のところを-1にする
         """
+        bit: int = 8
         y = np.zeros(len(x) * bit, dtype=np.int32)
         for i in range(len(x)):
             for j in reversed(range(bit)):
                 if x[i] & (0x01 << j):
                     y[bit * i + 7 - j] = 1
                 else:
-                    y[bit * i + 7 - j] = 0
-        return y
-
-    def __bpsk(self, x: NDArray[np.int32]) -> NDArray[np.float64]:
-        """
-        bpsk
-        今回は1シンボル1ビット
-        ビットが1のところは位相0[rad]に、ビットが0のところは位相π[rad]にする。
-        """
-        y = np.zeros(len(x), dtype=np.float64)
-        for i in range(len(x)):
-            if x[i] == 1:
-                y[i] = 0
-            else:
-                y[i] = np.pi
+                    y[bit * i + 7 - j] = -1
         return y
 
     def __create_spectrum_array(
-        self, bpsk_phase: NDArray[np.float64]
+        self, bpsk_phase: NDArray[np.int32]
     ) -> NDArray[np.float64]:
         all_subcarrier_number: int = SUBCARRIER_FREQUENCY_MAX // SUBCARRIER_INTERVAL + 1
         # all_subcarrier_number < N/2よりサブキャリアの周波数はすべて正であることが保証される。
@@ -106,11 +91,7 @@ class OFDM_Modulation:
             if is_pilot_signal:
                 X[i] = PILOT_SIGNAL_AMPLITUDE
             else:
-                if bpsk_phase[j] == 0:
-                    X[i] = 1
-                else:
-                    # 位相がpiのとき
-                    X[i] = -1
+                X[i] = bpsk_phase[j]
                 j += 1
         # 負の周波数に正の周波数のスペクトルをコピー
         for i in range(1, N // 2):
@@ -162,8 +143,7 @@ class OFDM_Modulation:
         """
         # Xがサブキャリア数と等しいか確認
         assert len(X) * 8 == SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL, "OFDM Input Error."
-        sp = self.__serial_to_parallel(X)
-        bpsk_data = self.__bpsk(sp)
+        bpsk_data = self.__bpsk(X)
         spe = self.__create_spectrum_array(bpsk_data)
         ifft_t, ifft_x = self.__ifft(spe)
         t = np.array([], dtype=np.float64)
@@ -277,19 +257,10 @@ class OFDM_Demodulation:
         return ans_f, ans_X
 
     def __bpsk(self, X: NDArray[np.float64]) -> NDArray[np.int32]:
-        ans = np.zeros(SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL, dtype=np.int32)
-        for i in range(SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL):
-            if X[i].real > 0:
-                ans[i] = 1
-            else:
-                ans[i] = 0
-        return ans
-
-    def __parallel_to_serial(self, x: NDArray[np.int32]) -> NDArray[np.int32]:
         ans = np.zeros(SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL // 8, dtype=np.int32)
         for i in range(len(ans)):
             for j in range(8):
-                if x[8 * i + j] == 1:
+                if X[8 * i + j] > 0:
                     ans[i] += 1 << (7 - j)
         return ans
 
@@ -317,8 +288,7 @@ class OFDM_Demodulation:
         f, X = self.__fft(__x)
         # f, X = self.__fft(_x)
         _f, _X = self.__pilot(f, X)
-        para = self.__bpsk(_X)
-        data = self.__parallel_to_serial(para)
+        data = self.__bpsk(_X)
         return data, f, X, _t, _x, __x
 
     def calculate_no_carrier(
