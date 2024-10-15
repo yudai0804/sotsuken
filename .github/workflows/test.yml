@@ -34,7 +34,6 @@ jobs:
       - name: Run pytest
         run: docker run -v ./ofdm-simulation:/app/ofdm-simulation ${{ steps.metadata.outputs.tags }} pytest
   lint:
-  pytest:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
