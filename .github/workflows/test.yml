@@ -32,7 +32,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha
       - name: Run pytest
-        run: docker run -v ./ofdm-simulation:/app/ofdm-simulation ${{ steps.metadata.outputs.tags }} pytest
+        run: docker run -v .:/app ${{ steps.metadata.outputs.tags }} pytest
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -59,4 +59,4 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha
       - name: mypy
-        run: docker run -v ./ofdm-simulation:/app/ofdm-simulation ${{ steps.metadata.outputs.tags }} mypy --strict .
+        run: docker run -v .:/app ${{ steps.metadata.outputs.tags }} mypy --strict .
