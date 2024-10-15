@@ -25,7 +25,7 @@ def test_single_signal(is_no_carrier: bool, use_noise: bool) -> None:
         else:
             x += gain * np.random.rand(len(x))
 
-    ans_data = np.array([], dtype=NDArray[np.int32])
+    ans_data = np.array([], dtype=np.int32)
 
     if is_no_carrier:
         ans_data, f, X, _t, _x, __x = ofdm_demod.calculate_no_carrier(ifft_t, ifft_x)
