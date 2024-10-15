@@ -36,14 +36,13 @@ pip install -r requirements.txt
 # docker
 ビルド
 ```
-cd ofdm-simulation
-docker build -t ofdm-simulation .
+docker build -t sotsuken .
 ```
-実行
+実行(pytest)
 ```
-docker run -v .:/app/ofdm-simulation ofdm-simulation:latest pytest
+docker run -v .:/app sotsuken:latest pytest
 ```
-実行(tty)
+実行(mypy)
 ```
-docker run -itv .:/app/ofdm-simulation ofdm-simulation:latest pytest
+docker run -v .:/app sotsuken:latest mypy --strict ofdm-simulation/
 ```
