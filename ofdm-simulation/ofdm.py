@@ -119,7 +119,7 @@ class OFDM_Modulation:
 
     def __ifft(
         self, X: NDArray[np.float64]
-    ) -> Tuple[NDArray[np.int32], NDArray[np.float64]]:
+    ) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         返り値はt,x
         ただし、tは実際の時間ではなくて0~N-1なので注意。
@@ -128,7 +128,7 @@ class OFDM_Modulation:
         x = np.zeros(N, dtype=np.float64)
         for i in range(N):
             x[i] = _x[i].real
-        return np.arange(N), x
+        return np.arange(N, dtype=np.float64), x
 
     def __multiply_by_carrier(
         self, x: NDArray[np.float64]
@@ -147,10 +147,11 @@ class OFDM_Modulation:
         _x: NDArray[np.float64] = fitted_x * np.cos(omega_c * t)
         return t, _x, fitted_x
 
-    def calculate(
-        self, X: NDArray[np.int32], is_no_carrier: bool = False
-    ) -> Tuple[
-        NDArray[np.float64], NDArray[np.float64], NDArray[np.int32], NDArray[np.float64]
+    def calculate(self, X: NDArray[np.int32], is_no_carrier: bool = False) -> Tuple[
+        NDArray[np.float64],
+        NDArray[np.float64],
+        NDArray[np.float64],
+        NDArray[np.float64],
     ]:
         """
         X:入力したいデータ
@@ -173,7 +174,7 @@ class OFDM_Modulation:
 
     def calculate_no_carrier(
         self, X: NDArray[np.int32]
-    ) -> Tuple[NDArray[np.int32], NDArray[np.float64]]:
+    ) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         搬送波との掛け合わせを行っていない結果(ifftを行った結果)を返す
         tとxは空の配列なので、ifft_tとifft_xのみ返す
@@ -321,7 +322,7 @@ class OFDM_Demodulation:
         return data, f, X, _t, _x, __x
 
     def calculate_no_carrier(
-        self, t: NDArray[np.float64], x_complex: NDArray[np.float64]
+        self, t: NDArray[np.float64], x: NDArray[np.float64]
     ) -> Tuple[
         NDArray[np.int32],
         NDArray[np.float64],
@@ -333,7 +334,7 @@ class OFDM_Demodulation:
         """
         x_complexは搬送波を含んでいない信号である必要がある
         """
-        return self.calculate(t, x_complex, is_no_carrier=True)
+        return self.calculate(t, x, is_no_carrier=True)
 
 
 class Synchronization:
