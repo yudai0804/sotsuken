@@ -59,4 +59,4 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha
       - name: mypy
-        run: docker run -v .:/app ${{ steps.metadata.outputs.tags }} mypy --strict ogdm-simulation/
+        run: docker run -v .:/app ${{ steps.metadata.outputs.tags }} mypy --strict ofdm-simulation/
