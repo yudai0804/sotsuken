@@ -1,9 +1,13 @@
 import numpy as np
 import math
 import scipy
+from numpy.typing import NDArray
+from typing import Any, List, Tuple
 
 
-def xcorr(x: np.ndarray, y: np.ndarray = []):
+def xcorr(
+    x: NDArray[np.complex128], y: NDArray[np.complex128]
+) -> Tuple[NDArray[np.complex128], NDArray[np.int32]]:
     """
     循環畳み込み積分を使って相互相関関数を求める
     yの要素数0のときはy=xとなって、自己相関関数を求める
@@ -68,15 +72,15 @@ def xcorr(x: np.ndarray, y: np.ndarray = []):
         # 末尾に0をlen(y)-1個
         for i in range(len(y)):
             yy[i] = y[i]
-    # print(xx.real)
-    # print(yy.real)
     XX = np.fft.fft(xx)
     YY = np.fft.fft(yy)
     R = np.fft.ifft(XX * YY.conj())
     return R, np.arange(len(R)) - len(R) // 2
 
 
-def correlate(x: np.ndarray, y: np.ndarray = []):
+def correlate(
+    x: NDArray[np.complex128], y: NDArray[np.complex128]
+) -> NDArray[np.complex128]:
     """
     numpy.correlate(mode="full") scipy.signal.correlate()準拠の相関を求める関数
     FFTを用いて計算する。
@@ -87,7 +91,7 @@ def correlate(x: np.ndarray, y: np.ndarray = []):
         y = x
     l_corr = len(x) + len(y) - 1
     # FFTに入力する用の要素数が2の冪乗の配列を作成
-    l_fft = 2 ** math.ceil(math.log2(l_corr))
+    l_fft: int = 2 ** math.ceil(math.log2(l_corr))
     x1 = np.zeros(l_fft, dtype=np.complex128)
     y1 = np.zeros(l_fft, dtype=np.complex128)
     # 0でpadding
