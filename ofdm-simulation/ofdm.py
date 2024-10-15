@@ -1,5 +1,7 @@
 import numpy as np
 import numpy.testing as npt
+from numpy.typing import NDArray
+from typing import Any, List, Tuple
 import scipy.signal
 import scipy.interpolate
 import matplotlib.pyplot as plt
@@ -13,28 +15,28 @@ import random
 import matplotlib_fontja
 
 # IFFT/FFTの回転因子の数
-N = 256
+N: int = 256
 # OFDMの周波数帯域は1~6kHz
 # OFDMの下限[Hz]
-SUBCARRIER_FREQUENCY_MIN = 1000
+SUBCARRIER_FREQUENCY_MIN: int = 1000
 # OFDMの上限[Hz]
-SUBCARRIER_FREQUENCY_MAX = 6000
+SUBCARRIER_FREQUENCY_MAX: int = 6000
 # サブキャリア数
-SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL = 96
+SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL: int = 96
 # サブキャリア間隔[Hz]
 # 変調に用いる情報であって、復調時はサンプリング周波数とNでサブキャリア間隔が決まるので注意
-SUBCARRIER_INTERVAL = 50
+SUBCARRIER_INTERVAL: int = 50
 
 # パイロット信号の周波数[Hz]
-PILOT_SIGNAL_FREQUENCY = [1000, 1050, 2700, 4350, 6000]
+PILOT_SIGNAL_FREQUENCY: List[int] = [1000, 1050, 2700, 4350, 6000]
 # パイロット信号の数[Hz]
-PILOT_SIGNAL_NUMBER = len(PILOT_SIGNAL_FREQUENCY)
+PILOT_SIGNAL_NUMBER: int = len(PILOT_SIGNAL_FREQUENCY)
 # パイロット信号の振幅
-PILOT_SIGNAL_AMPLITUDE = 2
+PILOT_SIGNAL_AMPLITUDE: int = 2
 # パイロット信号の位相[rad]
-PILOT_SIGNAL_PHASE = 0
+PILOT_SIGNAL_PHASE: float = 0
 
-SAMPLING_FREQUENCY = 12800
+SAMPLING_FREQUENCY: int = 12800
 
 
 #####################
@@ -44,115 +46,134 @@ SAMPLING_FREQUENCY = 12800
 
 # キャリア周波数[Hz]
 # 値は仮
-CARRIER_FREQUENCY = 2e6
-fs = 1e7
-cutoff = 1e4
+CARRIER_FREQUENCY: int = int(2e6)
+fs: int = int(1e7)
+cutoff: int = int(1e4)
 #####################
 
 
 class OFDM_Modulation:
-    def __serial_to_parallel(self, x: np.ndarray, bit=8) -> np.ndarray:
+    def __serial_to_parallel(
+        self, x: NDArray[np.int32], bit: int = 8
+    ) -> NDArray[np.int32]:
         """
         S/P変換
         データはMSBファーストにする
         配列の要素1つ分は1シンボルに該当する
         """
-        y = np.array([])
-        for i in x:
+        y = np.zeros(len(x) * bit, dtype=np.int32)
+        for i in range(len(x)):
             for j in reversed(range(bit)):
-                if i & (0x01 << j):
-                    y = np.append(y, 1)
+                if x[i] & (0x01 << j):
+                    y[bit * i + 7 - j] = 1
                 else:
-                    y = np.append(y, 0)
+                    y[bit * i + 7 - j] = 0
         return y
 
-    def __bpsk(self, x: np.ndarray, bit=8) -> np.ndarray:
+    def __bpsk(self, x: NDArray[np.int32]) -> NDArray[np.float64]:
         """
         bpsk
         今回は1シンボル1ビット
         ビットが1のところは位相0[rad]に、ビットが0のところは位相π[rad]にする。
         """
-        y = np.array([])
-        for i in x:
-            if i == 1:
-                y = np.append(y, 0)
+        y = np.zeros(len(x), dtype=np.float64)
+        for i in range(len(x)):
+            if x[i] == 1:
+                y[i] = 0
             else:
-                y = np.append(y, np.pi)
+                y[i] = np.pi
         return y
 
-    def __create_spectrum_array(self, bpsk_phase: np.ndarray) -> np.ndarray:
-        all_subcarrier_number = SUBCARRIER_FREQUENCY_MAX // SUBCARRIER_INTERVAL + 1
+    def __create_spectrum_array(
+        self, bpsk_phase: NDArray[np.float64]
+    ) -> NDArray[np.float64]:
+        all_subcarrier_number: int = SUBCARRIER_FREQUENCY_MAX // SUBCARRIER_INTERVAL + 1
         # all_subcarrier_number < N/2よりサブキャリアの周波数はすべて正であることが保証される。
         # 参考:https://numpy.org/doc/stable/reference/generated/numpy.fft.ifft.html
-        assert all_subcarrier_number < N / 2
-        phase = np.zeros(N, dtype=np.complex128)
-        A = np.zeros(N, dtype=np.complex128)
-        f = np.linspace(0, SUBCARRIER_FREQUENCY_MAX, all_subcarrier_number)
-        j = 0
+        assert all_subcarrier_number < N // 2
+        X = np.zeros(N, dtype=np.float64)
+        f: NDArray[np.float64] = np.linspace(
+            0, SUBCARRIER_FREQUENCY_MAX, all_subcarrier_number
+        )
+        j: int = 0
         for i in range(
             SUBCARRIER_FREQUENCY_MIN // SUBCARRIER_INTERVAL, all_subcarrier_number
         ):
-            is_pilot_signal = False
+            is_pilot_signal: bool = False
             for f_ps in PILOT_SIGNAL_FREQUENCY:
                 if f[i] == f_ps:
                     is_pilot_signal = True
             if is_pilot_signal:
-                A[i] = PILOT_SIGNAL_AMPLITUDE
+                X[i] = PILOT_SIGNAL_AMPLITUDE
             else:
-                A[i] = 1
-                phase[i] = bpsk_phase[j]
+                if bpsk_phase[j] == 0:
+                    X[i] = 1
+                else:
+                    # 位相がpiのとき
+                    X[i] = -1
                 j += 1
-        X = A * np.exp(1j * phase)
         # 負の周波数に正の周波数のスペクトルをコピー
-        for i in range(N // 2):
-            X[i + N // 2] = X[N // 2 - i - 1]
+        for i in range(1, N // 2):
+            X[N - i] = X[i]
         return X
 
-    def __ifft(self, X: np.ndarray):
+    def __ifft(
+        self, X: NDArray[np.float64]
+    ) -> Tuple[NDArray[np.int32], NDArray[np.float64]]:
         """
         返り値はt,x
         ただし、tは実際の時間ではなくて0~N-1なので注意。
         """
-        x = np.fft.ifft(X, N)
+        _x = np.fft.ifft(X, N)
+        x = np.zeros(N, dtype=np.float64)
+        for i in range(N):
+            x[i] = _x[i].real
         return np.arange(N), x
 
-    def __multiply_by_carrier(self, x: np.ndarray):
+    def __multiply_by_carrier(
+        self, x: NDArray[np.float64]
+    ) -> Tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
         """
         返り値はt,x
         """
-        fc = CARRIER_FREQUENCY
-        t = np.linspace(0, 0.02, int(fs), endpoint=False)
+        fc: int = CARRIER_FREQUENCY
+        t: NDArray[np.float64] = np.linspace(0, 0.02, int(fs), endpoint=False)
         # IFFTした点の数と1/(2fc)の数が合わないので、線形補間する
         fitted = scipy.interpolate.interp1d(np.linspace(0, t[-1], N), x)
         fitted_x = fitted(t)
         # 複素平面上の極座標系から実際の波に変換
         # そのとき、ωcで変調もする
-        omega_c = 2 * np.pi * fc
-        _x = fitted_x.real * np.cos(omega_c * t) + fitted_x.imag * np.sin(omega_c * t)
+        omega_c: float = 2 * np.pi * fc
+        _x: NDArray[np.float64] = fitted_x * np.cos(omega_c * t)
         return t, _x, fitted_x
 
-    def calculate(self, X: np.ndarray, is_no_carrier=False):
+    def calculate(
+        self, X: NDArray[np.int32], is_no_carrier: bool = False
+    ) -> Tuple[
+        NDArray[np.float64], NDArray[np.float64], NDArray[np.int32], NDArray[np.float64]
+    ]:
         """
         X:入力したいデータ
         返り値:
         t, x, ifft_tとifft_x
         tとxはOFDMした最終結果、
         ifft_tとifft_xはifftを行った結果(搬送波との掛け合わせは行っていない)
-        ifft_xは複素数だが、xは実数なので注意
         """
         # Xがサブキャリア数と等しいか確認
         assert len(X) * 8 == SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL, "OFDM Input Error."
         sp = self.__serial_to_parallel(X)
-        bpsk_data = self.__bpsk(sp.astype(np.float64))
+        bpsk_data = self.__bpsk(sp)
         spe = self.__create_spectrum_array(bpsk_data)
         ifft_t, ifft_x = self.__ifft(spe)
-        t = np.array([])
-        x = np.array([])
+        t = np.array([], dtype=np.float64)
+        x = np.array([], dtype=np.float64)
         if is_no_carrier == False:
             t, x, _dummy = self.__multiply_by_carrier(ifft_x)
         return t, x, ifft_t, ifft_x
 
-    def calculate_no_carrier(self, X: np.ndarray):
+    def calculate_no_carrier(
+        self, X: NDArray[np.int32]
+    ) -> Tuple[NDArray[np.int32], NDArray[np.float64]]:
         """
         搬送波との掛け合わせを行っていない結果(ifftを行った結果)を返す
         tとxは空の配列なので、ifft_tとifft_xのみ返す
@@ -162,62 +183,67 @@ class OFDM_Modulation:
 
 
 class OFDM_Demodulation:
-    def __lpf(self, x, cutoff, fs, order=5):
+    def __lpf(
+        self, x: NDArray[np.float64], cutoff: float, fs: float, order: int = 5
+    ) -> NDArray[np.float64]:
         # カットオフ周波数はナイキスト周波数で正規化したものをbutter関数に渡す
         _cutoff = cutoff / (0.5 * fs)
         b, a = scipy.signal.butter(order, _cutoff, btype="low")
-        y = scipy.signal.filtfilt(b, a, x)
+        y: NDArray[np.float64] = scipy.signal.filtfilt(b, a, x)
         return y
 
-    def __synchronous_detection(self, t: np.ndarray, x: np.ndarray):
+    def __synchronous_detection(
+        self, t: NDArray[np.float64], x: NDArray[np.float64]
+    ) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         同期検波
         """
-        omega_c = 2 * np.pi * CARRIER_FREQUENCY
+        omega_c: float = 2 * np.pi * CARRIER_FREQUENCY
         Re = np.cos(omega_c * t) * x
-        Im = np.sin(omega_c * t) * x
         Re_filter = self.__lpf(Re, cutoff, fs, order=5)
-        Im_filter = self.__lpf(Im, cutoff, fs, order=5)
-        x_complex = Re_filter + 1j * Im_filter
         # ローパスフィルタを通すと振幅が半分になってしまうので、2倍してもとにもどす
         # cos(ωs t)cos^2(ωc t)
         # を計算すると1/2が出てくるため(同期検波)
-        x_complex *= 2
-        return t, x_complex
+        Re_filter *= 2
+        return t, Re_filter
 
-    def __quantization(self, x, bit, low, high):
+    def __quantization(
+        self, x: NDArray[np.float64], bit: int, low: float, high: float
+    ) -> NDArray[np.float64]:
         """
         量子化
         """
         # 二分探索を用いて量子化
-        y = np.zeros(len(x), dtype="complex128")
-        q = np.linspace(low, high, int(2**bit))
+        y = np.zeros(len(x), dtype=np.float64)
+        q: NDArray[np.float64] = np.linspace(low, high, int(2**bit))
         for i in range(len(x)):
-            # real
-            j = bisect.bisect(q, x[i].real)
+            j = bisect.bisect(q, x[i])
             if j == len(q):
                 j = len(q) - 1
             y[i] += q[j]
-            # imag
-            j = bisect.bisect(q, x[i].imag)
-            if j == len(q):
-                j = len(q) - 1
-            y[i] += 1j * q[j]
-
         return y
 
-    def __fft(self, x_complex: np.ndarray):
-        X = np.fft.fft(x_complex, N)
-        f = np.fft.fftfreq(N, d=1 / SAMPLING_FREQUENCY)
+    def __fft(
+        self, x: NDArray[np.float64]
+    ) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
+        _X = np.fft.fft(x, N)
+        X = np.zeros(N, np.float64)
+        for i in range(N):
+            X[i] = _X[i].real
+        f: NDArray[np.float64] = np.fft.fftfreq(N, d=1 / SAMPLING_FREQUENCY)
         return f, X
 
-    def __linear_interpolation(self, t: np.ndarray, x: np.ndarray):
-        fitted_t = np.linspace(0.0, t[-1], int(N))
+    def __linear_interpolation(
+        self, t: NDArray[np.float64], x: NDArray[np.float64]
+    ) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
+        fitted_t: NDArray[np.float64] = np.linspace(0.0, t[-1], int(N))
         fitted = scipy.interpolate.interp1d(t, x)
-        fitted_x = fitted(fitted_t)
+        fitted_x: NDArray[np.float64] = fitted(fitted_t)
         return fitted_t, fitted_x
 
-    def __pilot(self, f: np.ndarray, X: np.ndarray):
+    def __pilot(
+        self, f: NDArray[np.float64], X: NDArray[np.float64]
+    ) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         FFTした結果は次のように格納されるので、1000~6000Hzの部分のみを切り抜く
         パイロット信号も除く
@@ -225,18 +251,18 @@ class OFDM_Demodulation:
         f = [0, 1, ..., (n-1)/2, -(n-1)/2, ..., -1] / (d*n)   if n is odd
         参考:https://numpy.org/doc/stable/reference/generated/numpy.fft.fftfreq.html#numpy.fft.fftfreq
         """
-        ans_f = np.zeros(SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL)
-        ans_X = np.zeros(SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL, dtype=np.complex128)
+        ans_f = np.zeros(SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL, dtype=np.float64)
+        ans_X = np.zeros(SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL, dtype=np.float64)
 
-        i = SUBCARRIER_FREQUENCY_MIN // SUBCARRIER_INTERVAL
-        j = 0
-        pilot_diff = 0
+        i: int = SUBCARRIER_FREQUENCY_MIN // SUBCARRIER_INTERVAL
+        j: int = 0
+        pilot_diff: float = 0
         while i <= SUBCARRIER_FREQUENCY_MAX // SUBCARRIER_INTERVAL:
-            is_pilot = False
+            is_pilot: bool = False
             for fp in PILOT_SIGNAL_FREQUENCY:
-                if f[i] == fp:
+                if abs(f[i] - fp) <= 1e-10:
                     is_pilot = True
-                    pilot_diff = X[i] - (2 + 0j)
+                    pilot_diff = X[i] - PILOT_SIGNAL_AMPLITUDE
 
             if is_pilot:
                 i += 1
@@ -249,8 +275,8 @@ class OFDM_Demodulation:
 
         return ans_f, ans_X
 
-    def __bpsk(self, X):
-        ans = np.zeros(SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL, dtype=int)
+    def __bpsk(self, X: NDArray[np.float64]) -> NDArray[np.int32]:
+        ans = np.zeros(SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL, dtype=np.int32)
         for i in range(SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL):
             if X[i].real > 0:
                 ans[i] = 1
@@ -258,24 +284,35 @@ class OFDM_Demodulation:
                 ans[i] = 0
         return ans
 
-    def __parallel_to_serial(self, x):
-        ans = np.zeros(SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL // 8, dtype=int)
+    def __parallel_to_serial(self, x: NDArray[np.int32]) -> NDArray[np.int32]:
+        ans = np.zeros(SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL // 8, dtype=np.int32)
         for i in range(len(ans)):
             for j in range(8):
                 if x[8 * i + j] == 1:
                     ans[i] += 1 << (7 - j)
         return ans
 
-    def calculate(self, t: np.ndarray, x: np.ndarray, is_no_carrier=False):
-        x_complex = np.array([])
-        if is_no_carrier:
-            x_complex = x
-        else:
-            t, x_complex = self.__synchronous_detection(t, x)
-        _t, _x = self.__linear_interpolation(t, x_complex)
+    def calculate(
+        self,
+        t: NDArray[np.float64],
+        x: NDArray[np.float64],
+        is_no_carrier: bool = False,
+    ) -> Tuple[
+        NDArray[np.int32],
+        NDArray[np.float64],
+        NDArray[np.float64],
+        NDArray[np.float64],
+        NDArray[np.float64],
+        NDArray[np.float64],
+    ]:
+        # TODO: t, xの扱いは後で見直す
+        if is_no_carrier == False:
+            t, x = self.__synchronous_detection(t, x)
+        _t, _x = self.__linear_interpolation(t, x)
         # 量子化をするとDCバイアスが少しのる。
         # 量子化を細かくすればDCバイアスは小さくなる
-        __x = self.__quantization(_x, 10, -0.5, 0.5)
+        # 最大振幅(0.2)の√2倍に設定
+        __x = self.__quantization(_x, 8, -0.2 * 2**0.5, 0.2 * 2**0.5)
         f, X = self.__fft(__x)
         # f, X = self.__fft(_x)
         _f, _X = self.__pilot(f, X)
@@ -283,7 +320,16 @@ class OFDM_Demodulation:
         data = self.__parallel_to_serial(para)
         return data, f, X, _t, _x, __x
 
-    def calculate_no_carrier(self, t: np.ndarray, x_complex: np.ndarray):
+    def calculate_no_carrier(
+        self, t: NDArray[np.float64], x_complex: NDArray[np.float64]
+    ) -> Tuple[
+        NDArray[np.int32],
+        NDArray[np.float64],
+        NDArray[np.float64],
+        NDArray[np.float64],
+        NDArray[np.float64],
+        NDArray[np.float64],
+    ]:
         """
         x_complexは搬送波を含んでいない信号である必要がある
         """
@@ -291,19 +337,21 @@ class OFDM_Demodulation:
 
 
 class Synchronization:
-    def __init__(self):
-        self.MINIMUM_VOLTAGE = 0.001
-        self.EDGE_THRESHOLD = 0.05
-        self.BUFFER_LENGTH = 16 * N
-        self.CORRELATE_THRESHOLD = 0.5
-        self.ONE_CYCLE_BUFFER_LENGTH = N
+    def __init__(self) -> None:
+        self.MINIMUM_VOLTAGE: float = 0.001
+        self.EDGE_THRESHOLD: float = 0.05
+        self.BUFFER_LENGTH: int = 16 * N
+        self.CORRELATE_THRESHOLD: float = 0.5
+        self.ONE_CYCLE_BUFFER_LENGTH: int = N
 
-        self.__is_detect_signal = False
+        self.__is_detect_signal: bool = False
 
-    def calculate(self, x: np.ndarray):
+    def calculate(
+        self, x: NDArray[np.float64]
+    ) -> Tuple[NDArray[np.int32], NDArray[np.float64], NDArray[np.int32]]:
         assert len(x) == self.BUFFER_LENGTH, "length error"
 
-        sum = 0
+        sum: float = 0
         offset: int = -1
         # 積分をして信号の立ち上がりを探す
         for i in range(len(x)):
@@ -318,10 +366,14 @@ class Synchronization:
         # 積分した結果、信号を見つけられなかった場合
         if offset == -1:
             self.__is_detect_signal = False
-            return np.array([]), np.array([]), np.array([])
+            return (
+                np.array([], dtype=np.int32),
+                np.array([], dtype=np.float64),
+                np.array([], np.int32),
+            )
 
         # 正確な立ち上がり時間を求めるために前の時間を探索
-        cnt = 0
+        cnt: int = 0
         while offset > 0 and cnt < 10:
             sum -= abs(x[offset])
             if sum < self.MINIMUM_VOLTAGE:
@@ -331,7 +383,7 @@ class Synchronization:
 
         # 相互相関関数を求めるために、1周期だけを切り取る
         # 積分だけでは正確な立ち上がりは検出できないため、少し多めに読む
-        x_one_cycle = np.zeros(self.ONE_CYCLE_BUFFER_LENGTH, dtype=np.complex128)
+        x_one_cycle = np.zeros(self.ONE_CYCLE_BUFFER_LENGTH, dtype=np.float64)
         for i in range(self.ONE_CYCLE_BUFFER_LENGTH):
             x_one_cycle[i] = x[i + offset]
 
@@ -339,7 +391,7 @@ class Synchronization:
         R = scipy.signal.correlate(x, x_one_cycle)
         index = np.arange(len(R)) - self.ONE_CYCLE_BUFFER_LENGTH + 1
 
-        signal_index = np.array([], int)
+        signal_index = np.array([], dtype=np.int32)
         last_detect = -1
         for i in range(len(R)):
             if R[i].real > self.CORRELATE_THRESHOLD:
@@ -358,7 +410,7 @@ class Synchronization:
         return self.__is_detect_signal
 
 
-def compare_np_array(a, b):
+def compare_np_array(a: Any, b: Any) -> bool:
     if len(a) != len(b):
         return False
     for i in range(len(a)):
@@ -367,8 +419,8 @@ def compare_np_array(a, b):
     return True
 
 
-def single_signal():
-    original_data = np.random.randint(0, 255, size=12)
+def single_signal() -> None:
+    original_data = np.random.randint(0, 255, size=12, dtype=np.int32)
     print(original_data)
     ofdm_mod = OFDM_Modulation()
     t, x, ifft_t, ifft_x = ofdm_mod.calculate(original_data)
@@ -388,8 +440,9 @@ def single_signal():
     # ans_data, f, X, _t, _x, __x = ofdm_demod.calculate(t, x)
     # 雑音を加える
     # gain = 0.0001
-    # ifft_x += gain * (np.random.rand(N) + 1j * np.random.rand(N))
-    ans_data, f, X, _t, _x, __x = ofdm_demod.calculate_no_carrier(ifft_t, ifft_x)
+    # ifft_x += gain * np.random.rand(N)
+    ans_data, f, X, _t, _x, __x = ofdm_demod.calculate(t, x)
+    # ans_data, f, X, _t, _x, __x = ofdm_demod.calculate_no_carrier(ifft_t, ifft_x)
 
     assert len(original_data) == len(ans_data)
     for i in range(len(original_data)):
@@ -418,23 +471,23 @@ def single_signal():
     plt.show()
 
 
-def multi_signal():
-    original_data = np.random.randint(0, 255, size=12)
+def multi_signal() -> None:
+    original_data = np.random.randint(0, 255, size=12, dtype=np.int32)
     print(original_data)
     ofdm_mod = OFDM_Modulation()
     ifft_t, ifft_x = ofdm_mod.calculate_no_carrier(original_data)
     # 雑音を加える
     gain = 0.0001
-    ifft_x += gain * (np.random.rand(N) + 1j * np.random.rand(N))
+    ifft_x += gain * np.random.rand(N)
     t16 = np.zeros(len(ifft_t) * 16)
-    x16 = np.zeros(len(ifft_x) * 16, dtype=np.complex128)
+    x16 = np.zeros(len(ifft_x) * 16, dtype=np.float64)
     dt = 1 / SAMPLING_FREQUENCY
     for i in range(len(t16)):
         t16[i] = i * dt
         x16[i] = ifft_x[i % N]
     for i in range(N):
         x16[9 * N + i] = 0
-    tmp = np.zeros(len(x16), dtype=np.complex128)
+    tmp = np.zeros(len(x16), dtype=np.float64)
     shift = random.randint(0, 3000)
     # shift
     shift = random.randint(0, 3000)
@@ -451,7 +504,7 @@ def multi_signal():
     shift_cnt = 0
     for i in range(len(signal_index)):
         demod_t = np.arange(N) * dt
-        demod_x = np.zeros(N, dtype=np.complex128)
+        demod_x = np.zeros(N, dtype=np.float64)
         if signal_index[i] + N - 1 >= sync.BUFFER_LENGTH:
             break
         for j in range(N):

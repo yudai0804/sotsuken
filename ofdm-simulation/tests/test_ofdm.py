@@ -2,6 +2,8 @@ import pytest
 from ofdm import *
 import numpy as np
 import numpy.testing as npt
+from numpy.typing import NDArray
+from typing import Any, List, Tuple
 import random
 
 
@@ -9,17 +11,17 @@ import random
     ("is_no_carrier", "use_noise"),
     [(False, False), (False, True), (True, False), (True, True)],
 )
-def test_single_signal(is_no_carrier, use_noise):
-    original_data = np.random.randint(0, 255, size=12)
+def test_single_signal(is_no_carrier: bool, use_noise: bool) -> None:
+    original_data = np.random.randint(0, 255, size=12, dtype=np.int32)
     ofdm_mod = OFDM_Modulation()
     t, x, ifft_t, ifft_x = ofdm_mod.calculate(original_data)
 
     ofdm_demod = OFDM_Demodulation()
     # 雑音を加える
     if use_noise:
-        gain = 0.0001
+        gain: float = 0.0001
         if is_no_carrier:
-            ifft_x += gain * (np.random.rand(N) + 1j * np.random.rand(N))
+            ifft_x += gain * np.random.rand(N)
         else:
             x += gain * np.random.rand(len(x))
 
@@ -37,18 +39,18 @@ def test_single_signal(is_no_carrier, use_noise):
     ("use_noise"),
     [(False), (True)],
 )
-def test_multi_signal(use_noise):
-    original_data = np.random.randint(0, 255, size=12)
+def test_multi_signal(use_noise: bool) -> None:
+    original_data = np.random.randint(0, 255, size=12, dtype=np.int32)
     ofdm_mod = OFDM_Modulation()
     ifft_t, ifft_x = ofdm_mod.calculate_no_carrier(original_data)
     # 雑音を加える
     if use_noise:
-        gain = 0.0001
+        gain: float = 0.0001
         for i in range(len(ifft_x)):
-            ifft_x += gain * (np.random.rand(N) + 1j * np.random.rand(N))
+            ifft_x += gain * np.random.rand(N)
     t16 = np.zeros(len(ifft_t) * 16)
-    x16 = np.zeros(len(ifft_x) * 16, dtype=np.complex128)
-    dt = 1 / SAMPLING_FREQUENCY
+    x16 = np.zeros(len(ifft_x) * 16, dtype=np.float64)
+    dt: float = 1 / SAMPLING_FREQUENCY
     for i in range(len(t16)):
         t16[i] = i * dt
         x16[i] = ifft_x[i % N]
@@ -70,7 +72,7 @@ def test_multi_signal(use_noise):
     shift_cnt = 0
     for i in range(len(signal_index)):
         demod_t = np.arange(N) * dt
-        demod_x = np.zeros(N, dtype=np.complex128)
+        demod_x = np.zeros(N, dtype=np.float64)
         if signal_index[i] + N - 1 >= sync.BUFFER_LENGTH:
             break
         for j in range(N):
@@ -91,7 +93,7 @@ def test_multi_signal(use_noise):
         npt.assert_equal(original_data, ans_data)
 
 
-def test_multi_signal_endurance():
+def test_multi_signal_endurance() -> None:
     for i in range(256):
         print("cnt = ", i)
         test_multi_signal(use_noise=True)

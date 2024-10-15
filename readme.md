@@ -5,7 +5,8 @@ Python3.11
   - scipy
   - matplotlib
   - matplotlib-fontja
-  - pytest
+  - pytest(fot test)
+  - mypy(for type check)
 
 octave(xcorr用)
   - signal packageを使用

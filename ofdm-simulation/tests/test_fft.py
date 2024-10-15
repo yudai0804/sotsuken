@@ -2,54 +2,56 @@ import pytest
 import fft
 import numpy as np
 import numpy.testing as npt
+from numpy.typing import NDArray
+from typing import Any, List, Tuple
 import random
 
 
-def test_fft():
-    N = 256
-    x = np.random.rand(N) + 1j * np.random.rand(N)
+def test_fft() -> None:
+    N: int = 256
+    x: NDArray[np.complex128] = np.random.rand(N) + 1j * np.random.rand(N)
     expected = np.fft.fft(x)
     result = fft.fft(x)
     npt.assert_almost_equal(expected, result)
 
 
-def test_ifft():
-    N = 256
-    x = np.random.rand(N) + 1j * np.random.rand(N)
+def test_ifft() -> None:
+    N: int = 256
+    x: NDArray[np.complex128] = np.random.rand(N) + 1j * np.random.rand(N)
     expected = np.fft.ifft(x)
     result = fft.ifft(x)
     npt.assert_almost_equal(expected, result)
 
 
-def test_fft_and_ifft():
+def test_fft_and_ifft() -> None:
     # 時間領域->周波数領域->時間領域ができているか確認
     # (FFTしたものをIFFTする)
-    N = 256
-    x = np.random.rand(N) + 1j * np.random.rand(N)
+    N: int = 256
+    x: NDArray[np.complex128] = np.random.rand(N) + 1j * np.random.rand(N)
     expected = x
     result = fft.ifft(fft.fft(x))
     npt.assert_almost_equal(expected, result)
 
 
-def test_dft_pow2():
-    N = 256
-    x = np.random.rand(N) + 1j * np.random.rand(N)
+def test_dft_pow2() -> None:
+    N: int = 256
+    x: NDArray[np.complex128] = np.random.rand(N) + 1j * np.random.rand(N)
     expected = np.fft.fft(x)
     result = fft.dft(x)
     npt.assert_almost_equal(expected, result)
 
 
-def test_dft_not_pow2():
-    N = random.randint(100, 300)
-    x = np.random.rand(N) + 1j * np.random.rand(N)
+def test_dft_not_pow2() -> None:
+    N: int = random.randint(100, 300)
+    x: NDArray[np.complex128] = np.random.rand(N) + 1j * np.random.rand(N)
     expected = np.fft.fft(x)
     result = fft.dft(x)
     npt.assert_almost_equal(expected, result)
 
 
-def test_fft_recursion():
-    N = 256
-    x = np.random.rand(N) + 1j * np.random.rand(N)
+def test_fft_recursion() -> None:
+    N: int = 256
+    x: NDArray[np.complex128] = np.random.rand(N) + 1j * np.random.rand(N)
     expected = np.fft.fft(x)
     result = fft.fft_recursion(x)
     npt.assert_almost_equal(expected, result)
