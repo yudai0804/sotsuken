@@ -118,7 +118,9 @@ class OFDM_Modulation:
         返り値はt,x
         """
         fc: int = CARRIER_FREQUENCY
-        t: NDArray[np.float64] = np.linspace(0, 0.02, int(fs), endpoint=False)
+        t: NDArray[np.float64] = np.linspace(
+            0, 1 / SUBCARRIER_INTERVAL, int(fs), endpoint=False
+        )
         # IFFTした点の数と1/(2fc)の数が合わないので、線形補間する
         fitted = scipy.interpolate.interp1d(np.linspace(0, t[-1], N), x)
         fitted_x = fitted(t)
@@ -175,7 +177,7 @@ class OFDM_Demodulation:
 
     def __synchronous_detection(
         self, t: NDArray[np.float64], x: NDArray[np.float64]
-    ) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
+    ) -> NDArray[np.float64]:
         """
         同期検波
         """
@@ -186,7 +188,7 @@ class OFDM_Demodulation:
         # cos(ωs t)cos^2(ωc t)
         # を計算すると1/2が出てくるため(同期検波)
         Re_filter *= 2
-        return t, Re_filter
+        return Re_filter
 
     def __quantization(
         self, x: NDArray[np.float64], bit: int, low: float, high: float
@@ -277,9 +279,8 @@ class OFDM_Demodulation:
         NDArray[np.float64],
         NDArray[np.float64],
     ]:
-        # TODO: t, xの扱いは後で見直す
         if is_no_carrier == False:
-            t, x = self.__synchronous_detection(t, x)
+            x = self.__synchronous_detection(t, x)
         _t, _x = self.__linear_interpolation(t, x)
         # 量子化をするとDCバイアスが少しのる。
         # 量子化を細かくすればDCバイアスは小さくなる
