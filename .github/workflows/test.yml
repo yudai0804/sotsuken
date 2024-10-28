@@ -28,7 +28,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha
       - name: Run pytest
-        run: docker run -v .:/app ${{ steps.metadata.outputs.tags }} pytest
+        run: docker run -v .:/app ${{ steps.metadata.outputs.tags }} pytest ofdm-simulation/tests
   lint:
     runs-on: ubuntu-latest
     steps:
