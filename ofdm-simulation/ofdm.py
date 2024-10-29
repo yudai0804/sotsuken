@@ -15,7 +15,7 @@ import random
 import matplotlib_fontja
 
 # IFFT/FFTの回転因子の数
-N: int = 256
+N: int = 1024
 # OFDMの周波数帯域は1~6kHz
 # OFDMの下限[Hz]
 SUBCARRIER_FREQUENCY_MIN: int = 1000
@@ -36,20 +36,12 @@ PILOT_SIGNAL_AMPLITUDE: int = 2
 # パイロット信号の位相[rad]
 PILOT_SIGNAL_PHASE: float = 0
 
-SAMPLING_FREQUENCY: int = 12800
+SAMPLING_FREQUENCY: int = 51200
 
-
-#####################
-# お気持ちパラメーター
-# 本来は搬送波はアナログフィルタで処理してしまうが、シミュレーションのためディジタルフィルタで処理する用
-# そもそもfsが44.1kHz超えてる時点でおかしい
-
-# キャリア周波数[Hz]
-# 値は仮
-CARRIER_FREQUENCY: int = int(2e6)
-fs: int = int(1e7)
-cutoff: int = int(1e4)
-#####################
+# 同期検波用パラメーター
+SYNC_DETECT_CARRIER_FREQUENCY: int = int(2e6)
+SYNC_DETECT_SAMPLING_FREQUENCY: int = int(1e7)
+SYNC_DETECT_CUTOFF_FREQUENCY: int = int(1e4)
 
 
 class OFDM_Modulation:
@@ -72,18 +64,12 @@ class OFDM_Modulation:
     def __create_spectrum_array(
         self, bpsk_phase: NDArray[np.int32]
     ) -> NDArray[np.float64]:
-        all_subcarrier_number: int = SUBCARRIER_FREQUENCY_MAX // SUBCARRIER_INTERVAL + 1
-        # all_subcarrier_number < N/2よりサブキャリアの周波数はすべて正であることが保証される。
-        # 参考:https://numpy.org/doc/stable/reference/generated/numpy.fft.ifft.html
-        assert all_subcarrier_number < N // 2
         X = np.zeros(N, dtype=np.float64)
-        f: NDArray[np.float64] = np.linspace(
-            0, SUBCARRIER_FREQUENCY_MAX, all_subcarrier_number
+        f: NDArray[np.int32] = np.arange(
+            SUBCARRIER_FREQUENCY_MAX + 1, step=SUBCARRIER_INTERVAL
         )
         j: int = 0
-        for i in range(
-            SUBCARRIER_FREQUENCY_MIN // SUBCARRIER_INTERVAL, all_subcarrier_number
-        ):
+        for i in range(SUBCARRIER_FREQUENCY_MIN // SUBCARRIER_INTERVAL, len(f)):
             is_pilot_signal: bool = False
             for f_ps in PILOT_SIGNAL_FREQUENCY:
                 if f[i] == f_ps:
@@ -117,16 +103,18 @@ class OFDM_Modulation:
         """
         返り値はt,x
         """
-        fc: int = CARRIER_FREQUENCY
         t: NDArray[np.float64] = np.linspace(
-            0, 1 / SUBCARRIER_INTERVAL, int(fs), endpoint=False
+            0,
+            1 / SUBCARRIER_INTERVAL,
+            SYNC_DETECT_SAMPLING_FREQUENCY,
+            endpoint=False,
         )
         # IFFTした点の数と1/(2fc)の数が合わないので、線形補間する
         fitted = scipy.interpolate.interp1d(np.linspace(0, t[-1], N), x)
         fitted_x = fitted(t)
         # 複素平面上の極座標系から実際の波に変換
         # そのとき、ωcで変調もする
-        omega_c: float = 2 * np.pi * fc
+        omega_c: float = 2 * np.pi * SYNC_DETECT_CARRIER_FREQUENCY
         _x: NDArray[np.float64] = fitted_x * np.cos(omega_c * t)
         return t, _x, fitted_x
 
@@ -167,7 +155,7 @@ class OFDM_Modulation:
 
 class OFDM_Demodulation:
     def __lpf(
-        self, x: NDArray[np.float64], cutoff: float, fs: float, order: int = 5
+        self, x: NDArray[np.float64], cutoff: float, fs: float, order: int
     ) -> NDArray[np.float64]:
         # カットオフ周波数はナイキスト周波数で正規化したものをbutter関数に渡す
         _cutoff = cutoff / (0.5 * fs)
@@ -181,14 +169,17 @@ class OFDM_Demodulation:
         """
         同期検波
         """
-        omega_c: float = 2 * np.pi * CARRIER_FREQUENCY
-        Re = np.cos(omega_c * t) * x
-        Re_filter = self.__lpf(Re, cutoff, fs, order=5)
-        # ローパスフィルタを通すと振幅が半分になってしまうので、2倍してもとにもどす
-        # cos(ωs t)cos^2(ωc t)
-        # を計算すると1/2が出てくるため(同期検波)
-        Re_filter *= 2
-        return Re_filter
+        omega_c: float = 2 * np.pi * SYNC_DETECT_CARRIER_FREQUENCY
+        x_lpf = self.__lpf(
+            np.cos(omega_c * t) * x,
+            SYNC_DETECT_CUTOFF_FREQUENCY,
+            SYNC_DETECT_SAMPLING_FREQUENCY,
+            order=1,
+        )
+        # ローパスフィルタを通して同期検波を行うと振幅が半分になってしまうので、2倍してもとにもどす。
+        # 振幅が半分になるのはcos(ωs t)cos^2(ωc t)を計算すると1/2が出てくるため。
+        x_lpf *= 2
+        return x_lpf
 
     def __quantization(
         self, x: NDArray[np.float64], bit: int, low: float, high: float
@@ -284,10 +275,11 @@ class OFDM_Demodulation:
         _t, _x = self.__linear_interpolation(t, x)
         # 量子化をするとDCバイアスが少しのる。
         # 量子化を細かくすればDCバイアスは小さくなる
-        # 最大振幅(0.2)の√2倍に設定
-        __x = self.__quantization(_x, 8, -0.2 * 2**0.5, 0.2 * 2**0.5)
+        # 最大振幅(0.05)の√2倍に設定
+        # パラメーターは雰囲気で決めているため、他のパラメーターを変えるとずれることがあるので注意
+        MAX_AMPLITUDE: float = 0.05**0.5
+        __x = self.__quantization(_x, 8, -MAX_AMPLITUDE, MAX_AMPLITUDE)
         f, X = self.__fft(__x)
-        # f, X = self.__fft(_x)
         _f, _X = self.__pilot(f, X)
         data = self.__bpsk(_X)
         return data, f, X, _t, _x, __x
@@ -310,10 +302,11 @@ class OFDM_Demodulation:
 
 class Synchronization:
     def __init__(self) -> None:
+        # ここらへんのパラメーターはNなどを変更したら、調整しないと動かないときがあるので注意
         self.MINIMUM_VOLTAGE: float = 0.001
-        self.EDGE_THRESHOLD: float = 0.05
+        self.EDGE_THRESHOLD: float = 0.0125
         self.BUFFER_LENGTH: int = 16 * N
-        self.CORRELATE_THRESHOLD: float = 0.5
+        self.CORRELATE_THRESHOLD: float = 0.125
         self.ONE_CYCLE_BUFFER_LENGTH: int = N
 
         self.__is_detect_signal: bool = False
@@ -367,15 +360,17 @@ class Synchronization:
         last_detect = -1
         for i in range(len(R)):
             if R[i].real > self.CORRELATE_THRESHOLD:
+                # 最近見つかった場合はスキップ
+                if last_detect != -1 and i - last_detect < int(0.5 * N):
+                    continue
                 # オフセット分ずらす
                 signal_index = np.append(signal_index, index[i])
                 last_detect = i
             # 1周期ちょっと離れても、信号が見つからない場合は終了
-            if last_detect != -1 and i - last_detect > 300:
+            if last_detect != -1 and i - last_detect > int(1.5 * N):
                 break
 
         self.__is_detect_signal = len(signal_index) > 0
-
         return signal_index, R, index
 
     def is_detect_signal(self) -> bool:
