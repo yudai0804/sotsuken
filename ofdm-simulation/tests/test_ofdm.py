@@ -71,7 +71,7 @@ def test_multi_signal(use_noise: bool) -> None:
     print("signal index = ", signal_index)
     # 復調
     demod = OFDM_Demodulation()
-    SHIFT: int = 10
+    SHIFT: int = 5
     shift_cnt: int = 0
     demod_t = np.arange(N) * dt
     demod_x = np.zeros(N, dtype=np.float64)
