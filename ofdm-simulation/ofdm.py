@@ -43,7 +43,7 @@ CUTOFF_FREQUENCY: int = int(1e4)
 
 # 同期検波用パラメーター
 SYNC_DETECT_CARRIER_FREQUENCY: int = int(2e6)
-SYNC_DETECT_SAMPLING_FREQUENCY: int = int(1e7)
+SYNC_DETECT_SAMPLING_FREQUENCY: int = int(4e6)
 SYNC_DETECT_CUTOFF_FREQUENCY: int = int(1e4)
 
 
@@ -161,7 +161,7 @@ class OFDM_Demodulation:
         self, x: NDArray[np.float64], cutoff: float, fs: float, order: int
     ) -> NDArray[np.float64]:
         """
-        scipyのwrapper関数
+        LPFを行うscipyのwrapper関数
         """
         # カットオフ周波数はナイキスト周波数で正規化したものをbutter関数に渡す
         _cutoff = cutoff / (0.5 * fs)
@@ -225,6 +225,9 @@ class OFDM_Demodulation:
     def __linear_interpolation(
         self, t: NDArray[np.float64], x: NDArray[np.float64]
     ) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
+        """
+        線形補間を行うscipyのwrapper関数
+        """
         fitted_t: NDArray[np.float64] = np.linspace(0.0, t[-1], int(N))
         fitted = scipy.interpolate.interp1d(t, x)
         fitted_x: NDArray[np.float64] = fitted(fitted_t)
@@ -262,7 +265,7 @@ class OFDM_Demodulation:
             i += 1
             j += 1
 
-        return ans_f, ans_X
+        return ans_X
 
     def __bpsk(self, X: NDArray[np.float64]) -> NDArray[np.int32]:
         ans = np.zeros(SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL // 8, dtype=np.int32)
@@ -284,27 +287,26 @@ class OFDM_Demodulation:
         NDArray[np.float64],
         NDArray[np.float64],
         NDArray[np.float64],
+        NDArray[np.float64],
+        NDArray[np.float64],
     ]:
+        x_sync_detect = np.array([], dtype=np.float64)
         if is_no_carrier == False:
-            x = self.__synchronous_detection(t, x)
-        # TODO: ここのpltあとで消す
-        plt.figure()
-        plt.plot(t, x)
+            x_sync_detect = self.__synchronous_detection(t, x)
+            x = x_sync_detect.copy()
         # ノイズ除去用ローパスフィルタ
-        x = self.__lowpass(x)
-        plt.figure()
-        plt.plot(t, x)
-        _t, _x = self.__linear_interpolation(t, x)
+        x_lpf = self.__lowpass(x)
+        t_len_n, x_len_n = self.__linear_interpolation(t, x_lpf)
         # 量子化をするとDCバイアスが少しのる。
         # 量子化を細かくすればDCバイアスは小さくなる
         # 最大振幅(0.05)の√2倍に設定
         # パラメーターは雰囲気で決めているため、他のパラメーターを変えるとずれることがあるので注意
         MAX_AMPLITUDE: float = 0.05**0.5
-        __x = self.__quantization(_x, 8, -MAX_AMPLITUDE, MAX_AMPLITUDE)
-        f, X = self.__fft(__x)
-        _f, _X = self.__pilot(f, X)
+        x_quant = self.__quantization(x_len_n, 8, -MAX_AMPLITUDE, MAX_AMPLITUDE)
+        f, X = self.__fft(x_quant)
+        _X = self.__pilot(f, X)
         data = self.__bpsk(_X)
-        return data, f, X, _t, _x, __x
+        return data, f, X, t_len_n, x_len_n, x_lpf, x_quant, x_sync_detect
 
     def calculate_no_carrier(
         self, t: NDArray[np.float64], x: NDArray[np.float64]
@@ -316,10 +318,11 @@ class OFDM_Demodulation:
         NDArray[np.float64],
         NDArray[np.float64],
     ]:
-        """
-        x_complexは搬送波を含んでいない信号である必要がある
-        """
-        return self.calculate(t, x, is_no_carrier=True)
+        data, f, X, t_len_n, x_len_n, x_lpf, x_quant, x_sync_detect = self.calculate(
+            t, x, is_no_carrier=True
+        )
+        # 同期検波は行っていないのでx_sync_detect以外を返す
+        return data, f, X, t_len_n, x_len_n, x_quant
 
 
 class Synchronization:
@@ -423,7 +426,7 @@ def single_signal() -> None:
     plt.figure()
     plt.plot(ifft_t, ifft_x)
     plt.title("入力信号をIFFTした結果")
-    plt.xlabel("時間[s]")
+    plt.xlabel("時間")
     plt.ylabel("振幅")
 
     plt.figure()
@@ -433,12 +436,9 @@ def single_signal() -> None:
     plt.ylabel("振幅")
 
     ofdm_demod = OFDM_Demodulation()
-    # ans_data, f, X, _t, _x, __x = ofdm_demod.calculate(t, x)
-    # 雑音を加える
-    # gain = 0.0001
-    # ifft_x += gain * np.random.rand(N)
-    ans_data, f, X, _t, _x, __x = ofdm_demod.calculate(t, x)
-    # ans_data, f, X, _t, _x, __x = ofdm_demod.calculate_no_carrier(ifft_t, ifft_x)
+    ans_data, f, X, t_len_n, x_len_n, x_lpf, x_quant, x_sync_detect = (
+        ofdm_demod.calculate(t, x)
+    )
 
     assert len(original_data) == len(ans_data)
     for i in range(len(original_data)):
@@ -450,8 +450,20 @@ def single_signal() -> None:
         print(f"f = {f[i]}, X = {X[i]:.3f}")
 
     plt.figure()
-    plt.plot(_t, _x.real)
+    plt.plot(t, x_sync_detect)
     plt.title("受信信号に同期検波を行った結果")
+    plt.xlabel("時間[s]")
+    plt.ylabel("振幅")
+
+    plt.figure()
+    plt.plot(t, x_lpf)
+    plt.title("ノイズ除去用ローパスフィルタをした結果")
+    plt.xlabel("時間[s]")
+    plt.ylabel("振幅")
+
+    plt.figure()
+    plt.plot(t_len_n, x_quant)
+    plt.title("量子化と標本化を行った結果")
     plt.xlabel("時間[s]")
     plt.ylabel("振幅")
 
@@ -508,7 +520,9 @@ def multi_signal() -> None:
                 break
             for j in range(N):
                 demod_x[j] = x16[signal_index[i] + j - shift_cnt]
-            ans_data, f, X, _t, _x, __x = demod.calculate_no_carrier(demod_t, demod_x)
+            ans_data, f, X, t_len_n, x_len_n, x_quant = demod.calculate_no_carrier(
+                demod_t, demod_x
+            )
             if compare_np_array(original_data, ans_data) == True:
                 break
         print("ans", ans_data)
@@ -522,8 +536,8 @@ if __name__ == "__main__":
 
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-    single_signal()
-    exit(0)
+    # single_signal()
+    # exit(0)
 
     for i in range(256):
         print("cnt=", i)
