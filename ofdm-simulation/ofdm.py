@@ -223,7 +223,7 @@ class OFDM_Demodulation:
         パイロット信号も除く
         f = [0, 1, ...,   n/2-1,     -n/2, ..., -1] / (d*n)   if n is even
         f = [0, 1, ..., (n-1)/2, -(n-1)/2, ..., -1] / (d*n)   if n is odd
-        参考:https://numpy.org/doc/stable/reference/generated/numpy.fft.fftfreq.html#numpy.fft.fftfreq
+        参考: https://numpy.org/doc/stable/reference/generated/numpy.fft.fftfreq.html#numpy.fft.fftfreq
         """
         ans_f = np.zeros(SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL, dtype=np.float64)
         ans_X = np.zeros(SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL, dtype=np.float64)
@@ -360,8 +360,15 @@ class Synchronization:
         last_detect = -1
         for i in range(len(R)):
             if R[i].real > self.CORRELATE_THRESHOLD:
-                # 最近見つかった場合はスキップ
-                if last_detect != -1 and i - last_detect < int(0.5 * N):
+                # 最後に見つかったのが近くだった場合
+                if last_detect != -1 and i - last_detect < int(0.05 * N):
+                    # signal_indexからindexに変換
+                    near: int = signal_index[-1] + self.ONE_CYCLE_BUFFER_LENGTH - 1
+                    if R[i].real > R[near].real:
+                        signal_index[-1] = index[i]
+                    continue
+                # 本来見つからない場所で見つかった場合はスキップ
+                if last_detect != -1 and i - last_detect < int(0.8 * N):
                     continue
                 # オフセット分ずらす
                 signal_index = np.append(signal_index, index[i])
@@ -455,20 +462,22 @@ def multi_signal() -> None:
     for i in range(N):
         x16[9 * N + i] = 0
     tmp = np.zeros(len(x16), dtype=np.float64)
-    shift = random.randint(0, 3000)
     # shift
-    shift = random.randint(0, 3000)
+    shift = random.randint(0, 10 * N)
     print("shift = ", shift)
     x16 = np.pad(x16, (shift, 0))[0 : len(x16)]
     sync = Synchronization()
     signal_index, R, index = sync.calculate(x16)
-    if sync.is_detect_signal() == False:
-        print("no signal")
-        return
+
+    # plt.figure()
+    # plt.plot(np.arange(len(R)), R.real)
+    # plt.show()
+
+    assert sync.is_detect_signal() == True, "no signal"
     print("signal index = ", signal_index)
     # 復調
     demod = OFDM_Demodulation()
-    shift_cnt = 0
+    shift_cnt = -5
     for i in range(len(signal_index)):
         demod_t = np.arange(N) * dt
         demod_x = np.zeros(N, dtype=np.float64)
@@ -478,7 +487,7 @@ def multi_signal() -> None:
             demod_x[j] = x16[signal_index[i] + j - shift_cnt]
         ans_data, f, X, _t, _x, __x = demod.calculate_no_carrier(demod_t, demod_x)
 
-        # 信号がない場合はオフセットがずれている可能性があるので、少しシフトしてもう一度復調する
+        # 信号が見当たらない場合はオフセットがずれている可能性があるので、少しシフトしてもう一度復調する。
         while (
             compare_np_array(original_data, ans_data) == False
             and shift_cnt < 5
@@ -508,8 +517,8 @@ if __name__ == "__main__":
 
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-    single_signal()
-    exit(0)
+    # single_signal()
+    # exit(0)
 
     for i in range(256):
         print("cnt=", i)
