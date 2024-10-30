@@ -94,6 +94,6 @@ def test_multi_signal(use_noise: bool) -> None:
 
 
 def test_multi_signal_endurance() -> None:
-    for i in range(256):
+    for i in range(1000):
         print("cnt = ", i)
         test_multi_signal(use_noise=True)

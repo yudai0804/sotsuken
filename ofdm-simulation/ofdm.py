@@ -327,9 +327,10 @@ class OFDM_Demodulation:
 
 class Synchronization:
     def __init__(self) -> None:
+        # 根拠なきお気持ちパラメーター
         # ここらへんのパラメーターはNなどを変更したら、調整しないと動かないときがあるので注意
-        self.MINIMUM_VOLTAGE: float = 0.001
-        self.EDGE_THRESHOLD: float = 0.0125
+        self.MINIMUM_VOLTAGE: float = 0.0005
+        self.EDGE_THRESHOLD: float = 0.0025
         self.BUFFER_LENGTH: int = 16 * N
         self.CORRELATE_THRESHOLD: float = 0.125
         self.ONE_CYCLE_BUFFER_LENGTH: int = N
@@ -502,6 +503,13 @@ def multi_signal() -> None:
     x16 = np.pad(x16, (shift, 0))[0 : len(x16)]
     sync = Synchronization()
     signal_index, R, index = sync.calculate(x16)
+    # for i in range(len(R)):
+    # print(f"{i},{R[i].real}")
+    # plt.figure()
+    # plt.plot(index, R)
+    # plt.figure()
+    # plt.plot(ifft_t, ifft_x)
+    # plt.show()
 
     assert sync.is_detect_signal() == True, "no signal"
     print("signal index = ", signal_index)
@@ -539,6 +547,6 @@ if __name__ == "__main__":
     # single_signal()
     # exit(0)
 
-    for i in range(256):
+    for i in range(1000):
         print("cnt=", i)
         multi_signal()
