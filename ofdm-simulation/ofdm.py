@@ -69,7 +69,7 @@ class OFDM_Modulation:
     ) -> NDArray[np.float64]:
         X = np.zeros(N, dtype=np.float64)
         f: NDArray[np.int32] = np.arange(
-            SUBCARRIER_FREQUENCY_MAX + 1, step=SUBCARRIER_INTERVAL
+            0, SUBCARRIER_FREQUENCY_MAX + 1, step=SUBCARRIER_INTERVAL, dtype=np.int32
         )
         j: int = 0
         for i in range(SUBCARRIER_FREQUENCY_MIN // SUBCARRIER_INTERVAL, len(f)):
@@ -235,7 +235,7 @@ class OFDM_Demodulation:
 
     def __pilot(
         self, f: NDArray[np.float64], X: NDArray[np.float64]
-    ) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
+    ) -> NDArray[np.float64]:
         """
         FFTした結果は次のように格納されるので、1000~6000Hzの部分のみを切り抜く
         パイロット信号も除く
