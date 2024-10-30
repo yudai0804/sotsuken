@@ -469,45 +469,28 @@ def multi_signal() -> None:
     sync = Synchronization()
     signal_index, R, index = sync.calculate(x16)
 
-    # plt.figure()
-    # plt.plot(np.arange(len(R)), R.real)
-    # plt.show()
-
     assert sync.is_detect_signal() == True, "no signal"
     print("signal index = ", signal_index)
     # 復調
     demod = OFDM_Demodulation()
-    shift_cnt = -5
+    SHIFT: int = 10
+    shift_cnt: int = 0
+    demod_t = np.arange(N) * dt
+    demod_x = np.zeros(N, dtype=np.float64)
     for i in range(len(signal_index)):
-        demod_t = np.arange(N) * dt
-        demod_x = np.zeros(N, dtype=np.float64)
-        if signal_index[i] + N - 1 >= sync.BUFFER_LENGTH:
-            break
-        for j in range(N):
-            demod_x[j] = x16[signal_index[i] + j - shift_cnt]
-        ans_data, f, X, _t, _x, __x = demod.calculate_no_carrier(demod_t, demod_x)
-
         # 信号が見当たらない場合はオフセットがずれている可能性があるので、少しシフトしてもう一度復調する。
-        while (
-            compare_np_array(original_data, ans_data) == False
-            and shift_cnt < 5
-            and signal_index[i - shift_cnt] > 0
-        ):
-            shift_cnt += 1
+        if signal_index[i] - (SHIFT - 1) + N - 1 >= sync.BUFFER_LENGTH:
+            break
+        for shift_cnt in range(SHIFT):
+            if signal_index[i] - shift_cnt + N - 1 >= sync.BUFFER_LENGTH:
+                break
             for j in range(N):
                 demod_x[j] = x16[signal_index[i] + j - shift_cnt]
             ans_data, f, X, _t, _x, __x = demod.calculate_no_carrier(demod_t, demod_x)
+            if compare_np_array(original_data, ans_data) == True:
+                break
         print("ans", ans_data)
         npt.assert_equal(original_data, ans_data)
-    """
-    plt.figure()
-    # plt.plot(t16, x16)
-    plt.plot(np.arange(len(t16)), x16)
-    plt.figure()
-    # plt.plot(index, R.real)
-    plt.plot(np.arange(len(R)), R.real)
-    plt.show()
-    """
 
 
 if __name__ == "__main__":
