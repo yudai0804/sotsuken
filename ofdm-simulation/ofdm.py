@@ -38,6 +38,9 @@ PILOT_SIGNAL_PHASE: float = 0
 
 SAMPLING_FREQUENCY: int = 51200
 
+# ローパスフィルタのカットオフ周波数
+CUTOFF_FREQUENCY: int = int(1e4)
+
 # 同期検波用パラメーター
 SYNC_DETECT_CARRIER_FREQUENCY: int = int(2e6)
 SYNC_DETECT_SAMPLING_FREQUENCY: int = int(1e7)
@@ -157,6 +160,9 @@ class OFDM_Demodulation:
     def __lpf(
         self, x: NDArray[np.float64], cutoff: float, fs: float, order: int
     ) -> NDArray[np.float64]:
+        """
+        scipyのwrapper関数
+        """
         # カットオフ周波数はナイキスト周波数で正規化したものをbutter関数に渡す
         _cutoff = cutoff / (0.5 * fs)
         b, a = scipy.signal.butter(order, _cutoff, btype="low")
@@ -170,16 +176,25 @@ class OFDM_Demodulation:
         同期検波
         """
         omega_c: float = 2 * np.pi * SYNC_DETECT_CARRIER_FREQUENCY
+        # x_lpfはorder=5じゃないとシミュレーション上で搬送波を除去しきれない
+        # 現実ではorder=1はありえないので注意。搬送波の周波数がシミュレーションの都合上、実際より低いのが原因
         x_lpf = self.__lpf(
             np.cos(omega_c * t) * x,
             SYNC_DETECT_CUTOFF_FREQUENCY,
             SYNC_DETECT_SAMPLING_FREQUENCY,
-            order=1,
+            order=5,
         )
         # ローパスフィルタを通して同期検波を行うと振幅が半分になってしまうので、2倍してもとにもどす。
         # 振幅が半分になるのはcos(ωs t)cos^2(ωc t)を計算すると1/2が出てくるため。
         x_lpf *= 2
         return x_lpf
+
+    def __lowpass(self, x: NDArray[np.float64]) -> NDArray[np.float64]:
+        """
+        ノイズ除去用ローパスフィルタ
+        """
+        # TODO: 必要であればLPFで減衰してしまった1000~6000Hzを補正する機能をつける。
+        return self.__lpf(x, CUTOFF_FREQUENCY, SAMPLING_FREQUENCY, order=1)
 
     def __quantization(
         self, x: NDArray[np.float64], bit: int, low: float, high: float
@@ -272,6 +287,13 @@ class OFDM_Demodulation:
     ]:
         if is_no_carrier == False:
             x = self.__synchronous_detection(t, x)
+        # TODO: ここのpltあとで消す
+        plt.figure()
+        plt.plot(t, x)
+        # ノイズ除去用ローパスフィルタ
+        x = self.__lowpass(x)
+        plt.figure()
+        plt.plot(t, x)
         _t, _x = self.__linear_interpolation(t, x)
         # 量子化をするとDCバイアスが少しのる。
         # 量子化を細かくすればDCバイアスは小さくなる
@@ -500,8 +522,8 @@ if __name__ == "__main__":
 
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-    # single_signal()
-    # exit(0)
+    single_signal()
+    exit(0)
 
     for i in range(256):
         print("cnt=", i)
