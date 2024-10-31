@@ -577,6 +577,6 @@ if __name__ == "__main__":
     # single_signal()
     # exit(0)
 
-    for i in range(10000):
+    for i in range(1000):
         print("cnt=", i)
         multi_signal()
