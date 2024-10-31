@@ -12,7 +12,10 @@ import random
     [(False, False), (False, True), (True, False), (True, True)],
 )
 def test_single_signal(is_no_carrier: bool, use_noise: bool) -> None:
-    original_data = np.random.randint(0, 255, size=12, dtype=np.int32)
+    original_data = np.concatenate(
+        ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55])
+    )
+
     ofdm_mod = OFDM_Modulation()
     t, x, ifft_t, ifft_x = ofdm_mod.calculate(original_data)
 
@@ -44,7 +47,10 @@ def test_single_signal(is_no_carrier: bool, use_noise: bool) -> None:
     [(False), (True)],
 )
 def test_multi_signal(use_noise: bool) -> None:
-    original_data = np.random.randint(0, 255, size=12, dtype=np.int32)
+    original_data = np.concatenate(
+        ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55])
+    )
+
     print(original_data)
     ofdm_mod = OFDM_Modulation()
     ifft_t, ifft_x = ofdm_mod.calculate_no_carrier(original_data)
@@ -71,7 +77,7 @@ def test_multi_signal(use_noise: bool) -> None:
     print("signal index = ", signal_index)
     # 復調
     demod = OFDM_Demodulation()
-    SHIFT: int = 5
+    SHIFT: int = 10
     shift_cnt: int = 0
     demod_t = np.arange(N) * dt
     demod_x = np.zeros(N, dtype=np.float64)
