@@ -157,6 +157,9 @@ class OFDM_Modulation:
 
 
 class OFDM_Demodulation:
+    def __init__(self) -> None:
+        self.__is_success: bool = False
+
     def __lpf(
         self, x: NDArray[np.float64], cutoff: float, fs: float, order: int
     ) -> NDArray[np.float64]:
@@ -193,7 +196,6 @@ class OFDM_Demodulation:
         """
         ノイズ除去用ローパスフィルタ
         """
-        # TODO: 必要であればLPFで減衰してしまった1000~6000Hzを補正する機能をつける。
         return self.__lpf(x, CUTOFF_FREQUENCY, SAMPLING_FREQUENCY, order=1)
 
     def __quantization(
@@ -249,12 +251,16 @@ class OFDM_Demodulation:
         i: int = SUBCARRIER_FREQUENCY_MIN // SUBCARRIER_INTERVAL
         j: int = 0
         pilot_diff: float = 0
+        PILOT_MIN: float = 1.5
+        PILOT_MAX: float = 2.5
         while i <= SUBCARRIER_FREQUENCY_MAX // SUBCARRIER_INTERVAL:
             is_pilot: bool = False
             for fp in PILOT_SIGNAL_FREQUENCY:
                 if abs(f[i] - fp) <= 1e-10:
                     is_pilot = True
                     pilot_diff = X[i] - PILOT_SIGNAL_AMPLITUDE
+                    if (PILOT_MIN < X[i] < PILOT_MAX) == False:
+                        self.__is_success = False
 
             if is_pilot:
                 i += 1
@@ -275,6 +281,11 @@ class OFDM_Demodulation:
                     ans[i] += 1 << (7 - j)
         return ans
 
+    def __check_data(self, data: NDArray[np.int32]) -> None:
+        # 0バイト目が0x55であれば通信成功
+        # __pilotのところでパイロット信号が適切に挿入されていなかった場合も失敗という判断を行っている
+        self.__is_success = data[0] == 0x55 and data[11] == 0x55
+
     def calculate(
         self,
         t: NDArray[np.float64],
@@ -290,6 +301,8 @@ class OFDM_Demodulation:
         NDArray[np.float64],
         NDArray[np.float64],
     ]:
+        self.__is_success = True
+
         x_sync_detect = np.array([], dtype=np.float64)
         if is_no_carrier == False:
             x_sync_detect = self.__synchronous_detection(t, x)
@@ -306,6 +319,7 @@ class OFDM_Demodulation:
         f, X = self.__fft(x_quant)
         _X = self.__pilot(f, X)
         data = self.__bpsk(_X)
+        self.__check_data(data)
         return data, f, X, t_len_n, x_len_n, x_lpf, x_quant, x_sync_detect
 
     def calculate_no_carrier(
@@ -323,6 +337,9 @@ class OFDM_Demodulation:
         )
         # 同期検波は行っていないのでx_sync_detect以外を返す
         return data, f, X, t_len_n, x_len_n, x_quant
+
+    def is_success(self) -> bool:
+        return self.__is_success
 
 
 class Synchronization:
@@ -420,7 +437,10 @@ def compare_np_array(a: Any, b: Any) -> bool:
 
 
 def single_signal() -> None:
-    original_data = np.random.randint(0, 255, size=12, dtype=np.int32)
+    original_data = np.concatenate(
+        ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55])
+    )
+
     print(original_data)
     ofdm_mod = OFDM_Modulation()
     t, x, ifft_t, ifft_x = ofdm_mod.calculate(original_data)
@@ -441,6 +461,9 @@ def single_signal() -> None:
         ofdm_demod.calculate(t, x)
     )
 
+    assert (
+        ofdm_demod.is_success() == True
+    ), f"original = {original_data}, answer = {ans_data}"
     assert len(original_data) == len(ans_data)
     for i in range(len(original_data)):
         assert (
@@ -481,7 +504,10 @@ def single_signal() -> None:
 
 
 def multi_signal() -> None:
-    original_data = np.random.randint(0, 255, size=12, dtype=np.int32)
+    original_data = np.concatenate(
+        ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55])
+    )
+
     print(original_data)
     ofdm_mod = OFDM_Modulation()
     ifft_t, ifft_x = ofdm_mod.calculate_no_carrier(original_data)
@@ -515,7 +541,7 @@ def multi_signal() -> None:
     print("signal index = ", signal_index)
     # 復調
     demod = OFDM_Demodulation()
-    SHIFT: int = 5
+    SHIFT: int = 10
     shift_cnt: int = 0
     demod_t = np.arange(N) * dt
     demod_x = np.zeros(N, dtype=np.float64)
@@ -524,6 +550,7 @@ def multi_signal() -> None:
         if signal_index[i] - (SHIFT - 1) + N - 1 >= sync.BUFFER_LENGTH:
             break
         for shift_cnt in range(SHIFT):
+            print(f"shift_cnt = {shift_cnt}")
             if signal_index[i] - shift_cnt + N - 1 >= sync.BUFFER_LENGTH:
                 break
             for j in range(N):
@@ -531,9 +558,12 @@ def multi_signal() -> None:
             ans_data, f, X, t_len_n, x_len_n, x_quant = demod.calculate_no_carrier(
                 demod_t, demod_x
             )
-            if compare_np_array(original_data, ans_data) == True:
+            if demod.is_success() == True:
                 break
         print("ans", ans_data)
+        assert (
+            demod.is_success() == True
+        ), f"original = {original_data}, answer = {ans_data}"
         npt.assert_equal(original_data, ans_data)
 
 
