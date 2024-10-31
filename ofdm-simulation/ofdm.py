@@ -1,6 +1,7 @@
 import numpy as np
 import numpy.testing as npt
 from numpy.typing import NDArray
+from pydantic import BaseModel, ConfigDict
 from typing import Any, List, Tuple
 import scipy.signal
 import scipy.interpolate
@@ -121,12 +122,15 @@ class OFDM_Modulation:
         _x: NDArray[np.float64] = fitted_x * np.cos(omega_c * t)
         return t, _x, fitted_x
 
-    def calculate(self, X: NDArray[np.int32], is_no_carrier: bool = False) -> Tuple[
-        NDArray[np.float64],
-        NDArray[np.float64],
-        NDArray[np.float64],
-        NDArray[np.float64],
-    ]:
+    class Result(BaseModel):
+        model_config = ConfigDict(arbitrary_types_allowed=True)
+
+        t: NDArray[np.float64]
+        x: NDArray[np.float64]
+        ifft_t: NDArray[np.float64]
+        ifft_x: NDArray[np.float64]
+
+    def calculate(self, X: NDArray[np.int32], is_no_carrier: bool = False) -> Result:
         """
         X:入力したいデータ
         返り値:
@@ -143,17 +147,14 @@ class OFDM_Modulation:
         x = np.array([], dtype=np.float64)
         if is_no_carrier == False:
             t, x, _dummy = self.__multiply_by_carrier(ifft_x)
-        return t, x, ifft_t, ifft_x
+        return self.Result(t=t, x=x, ifft_t=ifft_t, ifft_x=ifft_x)
 
-    def calculate_no_carrier(
-        self, X: NDArray[np.int32]
-    ) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
+    def calculate_no_carrier(self, X: NDArray[np.int32]) -> Result:
         """
         搬送波との掛け合わせを行っていない結果(ifftを行った結果)を返す
-        tとxは空の配列なので、ifft_tとifft_xのみ返す
+        Resultのtとxは空
         """
-        t, x, ifft_t, ifft_x = self.calculate(X, is_no_carrier=True)
-        return ifft_t, ifft_x
+        return self.calculate(X, True)
 
 
 class OFDM_Demodulation:
@@ -282,25 +283,31 @@ class OFDM_Demodulation:
         return ans
 
     def __check_data(self, data: NDArray[np.int32]) -> None:
-        # 0バイト目が0x55であれば通信成功
-        # __pilotのところでパイロット信号が適切に挿入されていなかった場合も失敗という判断を行っている
+        """
+        0バイト目と11バイト目が0x55であれば通信成功
+        __pilotのところでパイロット信号が適切に挿入されていなかった場合も失敗という判断を行っている
+        """
         self.__is_success = data[0] == 0x55 and data[11] == 0x55
+
+    class Result(BaseModel):
+        model_config = ConfigDict(arbitrary_types_allowed=True)
+
+        is_success: bool
+        data: NDArray[np.int32]
+        f: NDArray[np.float64]
+        X: NDArray[np.float64]
+        t_len_n: NDArray[np.float64]
+        x_len_n: NDArray[np.float64]
+        x_lpf: NDArray[np.float64]
+        x_quant: NDArray[np.float64]
+        x_sync_detect: NDArray[np.float64]
 
     def calculate(
         self,
         t: NDArray[np.float64],
         x: NDArray[np.float64],
         is_no_carrier: bool = False,
-    ) -> Tuple[
-        NDArray[np.int32],
-        NDArray[np.float64],
-        NDArray[np.float64],
-        NDArray[np.float64],
-        NDArray[np.float64],
-        NDArray[np.float64],
-        NDArray[np.float64],
-        NDArray[np.float64],
-    ]:
+    ) -> Result:
         self.__is_success = True
 
         x_sync_detect = np.array([], dtype=np.float64)
@@ -320,26 +327,25 @@ class OFDM_Demodulation:
         _X = self.__pilot(f, X)
         data = self.__bpsk(_X)
         self.__check_data(data)
-        return data, f, X, t_len_n, x_len_n, x_lpf, x_quant, x_sync_detect
+        return self.Result(
+            is_success=self.__is_success,
+            data=data,
+            f=f,
+            X=X,
+            t_len_n=t_len_n,
+            x_len_n=x_len_n,
+            x_lpf=x_lpf,
+            x_quant=x_quant,
+            x_sync_detect=x_sync_detect,
+        )
 
     def calculate_no_carrier(
         self, t: NDArray[np.float64], x: NDArray[np.float64]
-    ) -> Tuple[
-        NDArray[np.int32],
-        NDArray[np.float64],
-        NDArray[np.float64],
-        NDArray[np.float64],
-        NDArray[np.float64],
-        NDArray[np.float64],
-    ]:
-        data, f, X, t_len_n, x_len_n, x_lpf, x_quant, x_sync_detect = self.calculate(
-            t, x, is_no_carrier=True
-        )
-        # 同期検波は行っていないのでx_sync_detect以外を返す
-        return data, f, X, t_len_n, x_len_n, x_quant
-
-    def is_success(self) -> bool:
-        return self.__is_success
+    ) -> Result:
+        """
+        同期検波は行っていないのでx_sync_detectは空
+        """
+        return self.calculate(t, x, True)
 
 
 class Synchronization:
@@ -354,9 +360,14 @@ class Synchronization:
 
         self.__is_detect_signal: bool = False
 
-    def calculate(
-        self, x: NDArray[np.float64]
-    ) -> Tuple[NDArray[np.int32], NDArray[np.float64], NDArray[np.int32]]:
+    class Result(BaseModel):
+        model_config = ConfigDict(arbitrary_types_allowed=True)
+
+        signal_index: NDArray[np.int32]
+        R: NDArray[np.float64]
+        index: NDArray[np.int32]
+
+    def calculate(self, x: NDArray[np.float64]) -> Result:
         assert len(x) == self.BUFFER_LENGTH, "length error"
 
         sum: float = 0
@@ -374,10 +385,10 @@ class Synchronization:
         # 積分した結果、信号を見つけられなかった場合
         if offset == -1:
             self.__is_detect_signal = False
-            return (
-                np.array([], dtype=np.int32),
-                np.array([], dtype=np.float64),
-                np.array([], np.int32),
+            return self.Result(
+                signal_index=np.array([], dtype=np.int32),
+                R=np.array([], dtype=np.float64),
+                index=np.array([], np.int32),
             )
 
         # 正確な立ち上がり時間を求めるために前の時間を探索
@@ -421,7 +432,7 @@ class Synchronization:
                 break
 
         self.__is_detect_signal = len(signal_index) > 0
-        return signal_index, R, index
+        return self.Result(signal_index=signal_index, R=R, index=index)
 
     def is_detect_signal(self) -> bool:
         return self.__is_detect_signal
@@ -442,27 +453,15 @@ def single_signal() -> None:
     )
 
     print(original_data)
-    ofdm_mod = OFDM_Modulation()
-    t, x, ifft_t, ifft_x = ofdm_mod.calculate(original_data)
-    plt.figure()
-    plt.plot(ifft_t, ifft_x)
-    plt.title("入力信号をIFFTした結果")
-    plt.xlabel("時間")
-    plt.ylabel("振幅")
-
-    plt.figure()
-    plt.plot(t, x)
-    plt.title("IFFTした結果に搬送波をかけ合わせた結果")
-    plt.xlabel("時間[s]")
-    plt.ylabel("振幅")
-
-    ofdm_demod = OFDM_Demodulation()
-    ans_data, f, X, t_len_n, x_len_n, x_lpf, x_quant, x_sync_detect = (
-        ofdm_demod.calculate(t, x)
-    )
+    mod = OFDM_Modulation()
+    res_mod = mod.calculate(original_data)
+    demod = OFDM_Demodulation()
+    res_demod = demod.calculate(res_mod.t, res_mod.x)
+    ans_data = res_demod.data
+    t = res_mod.t
 
     assert (
-        ofdm_demod.is_success() == True
+        res_demod.is_success == True
     ), f"original = {original_data}, answer = {ans_data}"
     assert len(original_data) == len(ans_data)
     for i in range(len(original_data)):
@@ -470,29 +469,39 @@ def single_signal() -> None:
             original_data[i] == ans_data[i]
         ), f"original = {original_data[i]}, answer = {ans_data[i]}"
         print(f"original = {original_data[i]}, answer = {ans_data[i]}")
-    for i in range(len(X)):
-        print(f"f = {f[i]}, X = {X[i]:.3f}")
 
     plt.figure()
-    plt.plot(t, x_sync_detect)
+    plt.plot(res_mod.ifft_t, res_mod.ifft_x)
+    plt.title("入力信号をIFFTした結果")
+    plt.xlabel("時間")
+    plt.ylabel("振幅")
+
+    plt.figure()
+    plt.plot(t, res_mod.x)
+    plt.title("IFFTした結果に搬送波をかけ合わせた結果")
+    plt.xlabel("時間[s]")
+    plt.ylabel("振幅")
+
+    plt.figure()
+    plt.plot(t, res_demod.x_sync_detect)
     plt.title("受信信号に同期検波を行った結果")
     plt.xlabel("時間[s]")
     plt.ylabel("振幅")
 
     plt.figure()
-    plt.plot(t, x_lpf)
+    plt.plot(t, res_demod.x_lpf)
     plt.title("ノイズ除去用ローパスフィルタをした結果")
     plt.xlabel("時間[s]")
     plt.ylabel("振幅")
 
     plt.figure()
-    plt.plot(t_len_n, x_quant)
+    plt.plot(res_demod.t_len_n, res_demod.x_quant)
     plt.title("量子化と標本化を行った結果")
     plt.xlabel("時間[s]")
     plt.ylabel("振幅")
 
-    plot_f = np.fft.fftshift(f)
-    plot_X = np.fft.fftshift(X.real)
+    plot_f = np.fft.fftshift(res_demod.f)
+    plot_X = np.fft.fftshift(res_demod.X.real)
 
     plt.figure()
     plt.plot(plot_f, plot_X)
@@ -509,9 +518,11 @@ def multi_signal() -> None:
     )
 
     print(original_data)
-    ofdm_mod = OFDM_Modulation()
-    ifft_t, ifft_x = ofdm_mod.calculate_no_carrier(original_data)
+    mod = OFDM_Modulation()
+    res_mod = mod.calculate_no_carrier(original_data)
     # 雑音を加える
+    ifft_x = res_mod.ifft_x
+    ifft_t = res_mod.ifft_t
     gain = 0.0001
     ifft_x += gain * np.random.rand(N)
     t16 = np.zeros(len(ifft_t) * 16)
@@ -522,13 +533,13 @@ def multi_signal() -> None:
         x16[i] = ifft_x[i % N]
     for i in range(N):
         x16[9 * N + i] = 0
-    tmp = np.zeros(len(x16), dtype=np.float64)
     # shift
     shift = random.randint(0, 10 * N)
     print("shift = ", shift)
     x16 = np.pad(x16, (shift, 0))[0 : len(x16)]
     sync = Synchronization()
-    signal_index, R, index = sync.calculate(x16)
+    res_sync = sync.calculate(x16)
+    signal_index = res_sync.signal_index
     # for i in range(len(R)):
     # print(f"{i},{R[i].real}")
     # plt.figure()
@@ -555,14 +566,13 @@ def multi_signal() -> None:
                 break
             for j in range(N):
                 demod_x[j] = x16[signal_index[i] + j - shift_cnt]
-            ans_data, f, X, t_len_n, x_len_n, x_quant = demod.calculate_no_carrier(
-                demod_t, demod_x
-            )
-            if demod.is_success() == True:
+            res_demod = demod.calculate_no_carrier(demod_t, demod_x)
+            ans_data = res_demod.data
+            if res_demod.is_success == True:
                 break
         print("ans", ans_data)
         assert (
-            demod.is_success() == True
+            res_demod.is_success == True
         ), f"original = {original_data}, answer = {ans_data}"
         npt.assert_equal(original_data, ans_data)
 

@@ -4,6 +4,7 @@ import numpy as np
 import numpy.testing as npt
 from numpy.typing import NDArray
 from typing import Any, List, Tuple
+from pydantic import BaseModel, ConfigDict
 import random
 
 
@@ -16,10 +17,13 @@ def test_single_signal(is_no_carrier: bool, use_noise: bool) -> None:
         ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55])
     )
 
-    ofdm_mod = OFDM_Modulation()
-    t, x, ifft_t, ifft_x = ofdm_mod.calculate(original_data)
-
-    ofdm_demod = OFDM_Demodulation()
+    mod = OFDM_Modulation()
+    res_mod = mod.calculate(original_data)
+    t = res_mod.t
+    x = res_mod.x
+    ifft_t = res_mod.ifft_t
+    ifft_x = res_mod.ifft_x
+    demod = OFDM_Demodulation()
     # 雑音を加える
     if use_noise:
         gain: float = 0.0001
@@ -31,14 +35,13 @@ def test_single_signal(is_no_carrier: bool, use_noise: bool) -> None:
     ans_data = np.array([], dtype=np.int32)
 
     if is_no_carrier:
-        ans_data, f, X, t_len_n, x_len_n, x_quant = ofdm_demod.calculate_no_carrier(
-            ifft_t, ifft_x
-        )
+        res_demod = demod.calculate_no_carrier(ifft_t, ifft_x)
+        ans_data = res_demod.data
     else:
-        ans_data, f, X, t_len_n, x_len_n, x_lpf, x_quant, x_sync_detect = (
-            ofdm_demod.calculate(t, x)
-        )
+        res_demod = demod.calculate(t, x)
+        ans_data = res_demod.data
 
+    assert res_demod.is_success == True
     npt.assert_equal(original_data, ans_data)
 
 
@@ -52,8 +55,10 @@ def test_multi_signal(use_noise: bool) -> None:
     )
 
     print(original_data)
-    ofdm_mod = OFDM_Modulation()
-    ifft_t, ifft_x = ofdm_mod.calculate_no_carrier(original_data)
+    mod = OFDM_Modulation()
+    res_mod = mod.calculate_no_carrier(original_data)
+    ifft_t = res_mod.ifft_t
+    ifft_x = res_mod.ifft_x
     # 雑音を加える
     gain = 0.0001
     ifft_x += gain * np.random.rand(N)
@@ -71,7 +76,8 @@ def test_multi_signal(use_noise: bool) -> None:
     print("shift = ", shift)
     x16 = np.pad(x16, (shift, 0))[0 : len(x16)]
     sync = Synchronization()
-    signal_index, R, index = sync.calculate(x16)
+    res_sync = sync.calculate(x16)
+    signal_index = res_sync.signal_index
 
     assert sync.is_detect_signal() == True, "no signal"
     print("signal index = ", signal_index)
@@ -90,13 +96,11 @@ def test_multi_signal(use_noise: bool) -> None:
                 break
             for j in range(N):
                 demod_x[j] = x16[signal_index[i] + j - shift_cnt]
-            ans_data, f, X, t_len_n, x_len_n, x_quant = demod.calculate_no_carrier(
-                demod_t, demod_x
-            )
-            if compare_np_array(original_data, ans_data) == True:
+            res_demod = demod.calculate_no_carrier(demod_t, demod_x)
+            if res_demod.is_success == True:
                 break
-        print("ans", ans_data)
-        npt.assert_equal(original_data, ans_data)
+        print("ans", res_demod.data)
+        npt.assert_equal(original_data, res_demod.data)
 
 
 def test_multi_signal_endurance() -> None:
