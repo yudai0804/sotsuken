@@ -193,7 +193,6 @@ class OFDM_Demodulation:
         """
         ノイズ除去用ローパスフィルタ
         """
-        # TODO: 必要であればLPFで減衰してしまった1000~6000Hzを補正する機能をつける。
         return self.__lpf(x, CUTOFF_FREQUENCY, SAMPLING_FREQUENCY, order=1)
 
     def __quantization(
