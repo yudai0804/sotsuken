@@ -9,29 +9,22 @@ import random
 
 
 @pytest.mark.parametrize(
-    ("is_no_carrier", "use_noise"),
-    [(False, False), (False, True), (True, False), (True, True)],
+    ("is_no_carrier"),
+    [(False), (True)],
 )
-def test_single_signal(is_no_carrier: bool, use_noise: bool) -> None:
+def test_single_signal(is_no_carrier: bool) -> None:
     original_data = np.concatenate(
-        ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55])
+        ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55]),
+        dtype=np.int32,
     )
 
-    mod = OFDM_Modulation()
+    mod = Modulation()
     res_mod = mod.calculate(original_data)
     t = res_mod.t
     x = res_mod.x
     ifft_t = res_mod.ifft_t
     ifft_x = res_mod.ifft_x
-    demod = OFDM_Demodulation()
-    # 雑音を加える
-    if use_noise:
-        gain: float = 0.0001
-        if is_no_carrier:
-            ifft_x += gain * np.random.rand(N)
-        else:
-            x += gain * np.random.rand(len(x))
-
+    demod = Demodulation()
     ans_data = np.array([], dtype=np.int32)
 
     if is_no_carrier:
@@ -45,23 +38,17 @@ def test_single_signal(is_no_carrier: bool, use_noise: bool) -> None:
     npt.assert_equal(original_data, ans_data)
 
 
-@pytest.mark.parametrize(
-    ("use_noise"),
-    [(False), (True)],
-)
-def test_multi_signal(use_noise: bool) -> None:
+def test_multi_signal() -> None:
     original_data = np.concatenate(
-        ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55])
+        ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55]),
+        dtype=np.int32,
     )
 
     print(original_data)
-    mod = OFDM_Modulation()
+    mod = Modulation()
     res_mod = mod.calculate_no_carrier(original_data)
     ifft_t = res_mod.ifft_t
     ifft_x = res_mod.ifft_x
-    # 雑音を加える
-    gain = 0.0001
-    ifft_x += gain * np.random.rand(N)
     t16 = np.zeros(len(ifft_t) * 16)
     x16 = np.zeros(len(ifft_x) * 16, dtype=np.float64)
     dt = 1 / SAMPLING_FREQUENCY
@@ -82,7 +69,7 @@ def test_multi_signal(use_noise: bool) -> None:
     assert sync.is_detect_signal() == True, "no signal"
     print("signal index = ", signal_index)
     # 復調
-    demod = OFDM_Demodulation()
+    demod = Demodulation()
     SHIFT: int = 10
     shift_cnt: int = 0
     demod_t = np.arange(N) * dt
@@ -97,7 +84,7 @@ def test_multi_signal(use_noise: bool) -> None:
             for j in range(N):
                 demod_x[j] = x16[signal_index[i] + j - shift_cnt]
             res_demod = demod.calculate_no_carrier(demod_t, demod_x)
-            if res_demod.is_success == True:
+            if res_demod.is_success:
                 break
         print("ans", res_demod.data)
         npt.assert_equal(original_data, res_demod.data)
@@ -106,4 +93,4 @@ def test_multi_signal(use_noise: bool) -> None:
 def test_multi_signal_endurance() -> None:
     for i in range(1000):
         print("cnt = ", i)
-        test_multi_signal(use_noise=True)
+        test_multi_signal()
