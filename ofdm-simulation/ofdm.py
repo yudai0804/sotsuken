@@ -530,11 +530,8 @@ def multi_signal() -> (
     print(original_data)
     mod = Modulation()
     res_mod = mod.calculate_no_carrier(original_data)
-    # 雑音を加える
     ifft_x = res_mod.ifft_x
     ifft_t = res_mod.ifft_t
-    gain = 0.0001
-    ifft_x += gain * np.random.rand(N)
     t16 = np.zeros(len(ifft_t) * 16)
     x16 = np.zeros(len(ifft_x) * 16, dtype=np.float64)
     dt = 1 / SAMPLING_FREQUENCY
@@ -587,18 +584,3 @@ def plot_multi_signal(res_sync: Synchronization.Result) -> None:
     plt.figure()
     plt.plot(index, R)
     plt.show()
-
-
-if __name__ == "__main__":
-    # matplotlibを使ったときにctrl cで停止できるようにする
-    # 参考:https://stackoverflow.com/questions/67977761/how-to-make-plt-show-responsive-to-ctrl-c
-    import signal
-
-    signal.signal(signal.SIGINT, signal.SIG_DFL)
-
-    # single_signal()
-    # exit(0)
-
-    for i in range(1000):
-        print("cnt=", i)
-        multi_signal()

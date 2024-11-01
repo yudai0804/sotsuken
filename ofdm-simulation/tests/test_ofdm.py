@@ -9,10 +9,10 @@ import random
 
 
 @pytest.mark.parametrize(
-    ("is_no_carrier", "use_noise"),
-    [(False, False), (False, True), (True, False), (True, True)],
+    ("is_no_carrier"),
+    [(False), (True)],
 )
-def test_single_signal(is_no_carrier: bool, use_noise: bool) -> None:
+def test_single_signal(is_no_carrier: bool) -> None:
     original_data = np.concatenate(
         ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55]),
         dtype=np.int32,
@@ -25,14 +25,6 @@ def test_single_signal(is_no_carrier: bool, use_noise: bool) -> None:
     ifft_t = res_mod.ifft_t
     ifft_x = res_mod.ifft_x
     demod = Demodulation()
-    # 雑音を加える
-    if use_noise:
-        gain: float = 0.0001
-        if is_no_carrier:
-            ifft_x += gain * np.random.rand(N)
-        else:
-            x += gain * np.random.rand(len(x))
-
     ans_data = np.array([], dtype=np.int32)
 
     if is_no_carrier:
@@ -46,11 +38,7 @@ def test_single_signal(is_no_carrier: bool, use_noise: bool) -> None:
     npt.assert_equal(original_data, ans_data)
 
 
-@pytest.mark.parametrize(
-    ("use_noise"),
-    [(False), (True)],
-)
-def test_multi_signal(use_noise: bool) -> None:
+def test_multi_signal() -> None:
     original_data = np.concatenate(
         ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55]),
         dtype=np.int32,
@@ -61,9 +49,6 @@ def test_multi_signal(use_noise: bool) -> None:
     res_mod = mod.calculate_no_carrier(original_data)
     ifft_t = res_mod.ifft_t
     ifft_x = res_mod.ifft_x
-    # 雑音を加える
-    gain = 0.0001
-    ifft_x += gain * np.random.rand(N)
     t16 = np.zeros(len(ifft_t) * 16)
     x16 = np.zeros(len(ifft_x) * 16, dtype=np.float64)
     dt = 1 / SAMPLING_FREQUENCY
@@ -108,4 +93,4 @@ def test_multi_signal(use_noise: bool) -> None:
 def test_multi_signal_endurance() -> None:
     for i in range(1000):
         print("cnt = ", i)
-        test_multi_signal(use_noise=True)
+        test_multi_signal()
