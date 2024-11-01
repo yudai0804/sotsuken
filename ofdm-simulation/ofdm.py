@@ -48,7 +48,7 @@ SYNC_DETECT_SAMPLING_FREQUENCY: int = int(4e6)
 SYNC_DETECT_CUTOFF_FREQUENCY: int = int(1e4)
 
 
-class OFDM_Modulation:
+class Modulation:
     def __bpsk(self, x: NDArray[np.int32]) -> NDArray[np.int32]:
         """
         bpsk
@@ -157,7 +157,7 @@ class OFDM_Modulation:
         return self.calculate(X, True)
 
 
-class OFDM_Demodulation:
+class Demodulation:
     def __init__(self) -> None:
         self.__is_success: bool = False
 
@@ -447,18 +447,18 @@ def compare_np_array(a: Any, b: Any) -> bool:
     return True
 
 
-def single_signal() -> None:
+def single_signal() -> Tuple[Modulation.Result, Demodulation.Result]:
     original_data = np.concatenate(
-        ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55])
+        ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55]),
+        dtype=np.int32,
     )
 
     print(original_data)
-    mod = OFDM_Modulation()
+    mod = Modulation()
     res_mod = mod.calculate(original_data)
-    demod = OFDM_Demodulation()
+    demod = Demodulation()
     res_demod = demod.calculate(res_mod.t, res_mod.x)
     ans_data = res_demod.data
-    t = res_mod.t
 
     assert (
         res_demod.is_success == True
@@ -470,6 +470,13 @@ def single_signal() -> None:
         ), f"original = {original_data[i]}, answer = {ans_data[i]}"
         print(f"original = {original_data[i]}, answer = {ans_data[i]}")
 
+    return res_mod, res_demod
+
+
+def plot_single_signal(
+    res_mod: Modulation.Result, res_demod: Demodulation.Result
+) -> None:
+    t = res_mod.t
     plt.figure()
     plt.plot(res_mod.ifft_t, res_mod.ifft_x)
     plt.title("入力信号をIFFTした結果")
@@ -512,13 +519,16 @@ def single_signal() -> None:
     plt.show()
 
 
-def multi_signal() -> None:
+def multi_signal() -> (
+    Tuple[Modulation.Result, Demodulation.Result, Synchronization.Result]
+):
     original_data = np.concatenate(
-        ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55])
+        ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55]),
+        dtype=np.int32,
     )
 
     print(original_data)
-    mod = OFDM_Modulation()
+    mod = Modulation()
     res_mod = mod.calculate_no_carrier(original_data)
     # 雑音を加える
     ifft_x = res_mod.ifft_x
@@ -540,18 +550,11 @@ def multi_signal() -> None:
     sync = Synchronization()
     res_sync = sync.calculate(x16)
     signal_index = res_sync.signal_index
-    # for i in range(len(R)):
-    # print(f"{i},{R[i].real}")
-    # plt.figure()
-    # plt.plot(index, R)
-    # plt.figure()
-    # plt.plot(ifft_t, ifft_x)
-    # plt.show()
 
     assert sync.is_detect_signal() == True, "no signal"
     print("signal index = ", signal_index)
     # 復調
-    demod = OFDM_Demodulation()
+    demod = Demodulation()
     SHIFT: int = 10
     shift_cnt: int = 0
     demod_t = np.arange(N) * dt
@@ -575,6 +578,15 @@ def multi_signal() -> None:
             res_demod.is_success == True
         ), f"original = {original_data}, answer = {ans_data}"
         npt.assert_equal(original_data, ans_data)
+    return res_mod, res_demod, res_sync
+
+
+def plot_multi_signal(res_sync: Synchronization.Result) -> None:
+    index = res_sync.index
+    R = res_sync.R
+    plt.figure()
+    plt.plot(index, R)
+    plt.show()
 
 
 if __name__ == "__main__":
