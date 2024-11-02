@@ -5,12 +5,14 @@ Python3.11
   - scipy
   - matplotlib
   - matplotlib-fontja
+  - pydantic
   - pytest(fot test)
   - mypy(for type check)
 
 octave(xcorr用)
   - signal packageを使用
-# setup
+
+# Setup
 
 venv環境作成
 ```
@@ -33,7 +35,7 @@ pip freeze > requirements.txt
 pip install -r requirements.txt
 ```
 
-# docker
+# Docker
 ビルド
 ```
 docker build -t sotsuken .
