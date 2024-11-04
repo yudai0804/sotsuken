@@ -351,11 +351,59 @@ class Synchronization:
         # ここらへんのパラメーターはNなどを変更したら、調整しないと動かないときがあるので注意
         self.MINIMUM_VOLTAGE: float = 0.0005
         self.EDGE_THRESHOLD: float = 0.0025
-        self.BUFFER_LENGTH: int = 16 * N
+        self.SYMBOL_NUMBER: int = 3
+        self.BUFFER_LENGTH: int = self.SYMBOL_NUMBER * N
         self.CORRELATE_THRESHOLD: float = 0.125
         self.ONE_CYCLE_BUFFER_LENGTH: int = N
 
         self.__is_detect_signal: bool = False
+        # 0~2N-1
+        # offsetが2Nより大きい値になってしまうと、インデックスが3N-1からはみ出てしまうので最大でも2N-1
+        self.__offset: int = -1
+        self.__detect_count: int = 0
+        self.__symbol = np.array([-1] * 9, dtype=np.int32)
+
+    def __search_rising(self, x: NDArray[np.float64]) -> None:
+        # シフト
+        if self.__offset - N >= 0:
+            self.__offset -= N
+
+        if 0 < self.__detect_count < 10:
+            return
+        if self.__detect_count == 10:
+            self.__is_detect_signal = False
+            self.__detect_count = 0
+            self.__offset = self.__offset % N + self.BUFFER_LENGTH
+            return
+        # self.__detect_count == 0のとき
+        sum: float = 0
+        # 過去のオフセットを使用する場合はは少し戻す
+        self.__offset -= 10
+        if self.__offset < 0:
+            self.__offset = -1
+        # 積分をして信号の立ち上がりを探す
+        self.__is_detect_signal = False
+        for i in range(len(x) - N):
+            # 電圧が小さい場合は無信号時のノイズなのでcontinue
+            if abs(x[i]) < self.MINIMUM_VOLTAGE:
+                continue
+            sum += abs(x[i])
+            if sum >= self.EDGE_THRESHOLD:
+                self.__is_detect_signal = True
+                self.__offset = i
+                break
+
+        if self.__is_detect_signal == False:
+            self.clear_offset()
+            return
+        # 正確な立ち上がり時間を求めるために前の時間を探索
+        cnt: int = 0
+        while self.__offset > 0 and cnt < 10:
+            sum -= abs(x[self.__offset])
+            if sum < self.MINIMUM_VOLTAGE:
+                break
+            self.__offset -= 1
+            cnt += 1
 
     class Result(BaseModel):
         model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -367,72 +415,78 @@ class Synchronization:
     def calculate(self, x: NDArray[np.float64]) -> Result:
         assert len(x) == self.BUFFER_LENGTH, "length error"
 
-        sum: float = 0
-        offset: int = -1
-        # 積分をして信号の立ち上がりを探す
-        for i in range(len(x)):
-            # 電圧が小さい場合は無信号時のノイズなのでcontinue
-            if abs(x[i]) < self.MINIMUM_VOLTAGE:
-                continue
-            sum += abs(x[i])
-            if sum >= self.EDGE_THRESHOLD:
-                offset = i
-                break
-
-        # 積分した結果、信号を見つけられなかった場合
-        if offset == -1:
-            self.__is_detect_signal = False
+        self.__search_rising(x)
+        if self.__is_detect_signal == False:
             return self.Result(
-                signal_index=np.array([], dtype=np.int32),
-                R=np.array([], dtype=np.float64),
-                index=np.array([], np.int32),
+                signal_index=np.array([]), R=np.array([]), index=np.array([])
             )
 
-        # 正確な立ち上がり時間を求めるために前の時間を探索
-        cnt: int = 0
-        while offset > 0 and cnt < 10:
-            sum -= abs(x[offset])
-            if sum < self.MINIMUM_VOLTAGE:
-                break
-            offset -= 1
-            cnt += 1
-
-        # 相互相関関数を求めるために、1周期だけを切り取る
-        # 積分だけでは正確な立ち上がりは検出できないため、少し多めに読む
+        # 相互相関関数を求めるために、1周期を切り取る
         x_one_cycle = np.zeros(self.ONE_CYCLE_BUFFER_LENGTH, dtype=np.float64)
         for i in range(self.ONE_CYCLE_BUFFER_LENGTH):
-            x_one_cycle[i] = x[i + offset]
+            x_one_cycle[i] = x[i + self.__offset]
 
         # 相関を求める
         R = scipy.signal.correlate(x, x_one_cycle)
         index = np.arange(len(R)) - self.ONE_CYCLE_BUFFER_LENGTH + 1
 
+        def is_detected(
+            symbol: NDArray[np.int32], signal_index: int, detect_count: int
+        ) -> bool:
+            RANGE: int = int(0.025 * N)
+            for i in range(len(symbol)):
+                if signal_index - RANGE < symbol[i] < signal_index + RANGE:
+                    return detect_count > i
+            # 信号のインデックスの合う範囲がなければFalse
+            return False
+
+        # TODO: 0~9の場合の処理を実装する
+
         signal_index = np.array([], dtype=np.int32)
-        last_detect = -1
-        for i in range(len(R)):
-            if R[i].real > self.CORRELATE_THRESHOLD:
-                # 最後に見つかったのが近くだった場合
-                if last_detect != -1 and i - last_detect < int(0.05 * N):
-                    # signal_indexからindexに変換
-                    near: int = signal_index[-1] + self.ONE_CYCLE_BUFFER_LENGTH - 1
-                    if R[i].real > R[near].real:
-                        signal_index[-1] = index[i]
-                    continue
-                # 本来見つからない場所で見つかった場合はスキップ
-                if last_detect != -1 and i - last_detect < int(0.8 * N):
-                    continue
-                # オフセット分ずらす
-                signal_index = np.append(signal_index, index[i])
-                last_detect = i
-            # 1周期ちょっと離れても、信号が見つからない場合は終了
-            if last_detect != -1 and i - last_detect > int(1.5 * N):
-                break
+        last_detect: int = -1
+
+        # 0個目のデータを探す
+        if self.__detect_count == 0:
+            for i in range(len(R)):
+                if R[i].real > self.CORRELATE_THRESHOLD:
+                    if last_detect == -1:
+                        signal_index = np.append(signal_index, index[i])
+                        last_detect = i
+                        # TODO: index[i]が適切か確認
+                        self.__symbol[self.__detect_count] = index[i]
+                        self.__detect_count += 1
+                    else:
+                        # signal_indexからindexに変換
+                        near: int = signal_index[-1] + self.ONE_CYCLE_BUFFER_LENGTH - 1
+                        if R[i].real > R[near].real:
+                            signal_index[-1] = index[i]
+                            self.__symbol[self.__detect_count] = index[i]
+                # 0個目のデータが発見されていれば終了
+                if last_detect != -1 and i - last_detect > int(0.2 * N):
+                    break
+            if self.__detect_count == 0:
+                self.__is_detect_signal = False
+                return self.Result(signal_index=signal_index, R=R, index=index)
+            for i in range(1, len(self.__symbol)):
+                self.__symbol[i] = self.__symbol[0] + i * N
+        # 0個目以降のデータを探す
 
         self.__is_detect_signal = len(signal_index) > 0
         return self.Result(signal_index=signal_index, R=R, index=index)
 
     def is_detect_signal(self) -> bool:
         return self.__is_detect_signal
+
+    def set_offset(self, new_offset: int) -> None:
+        for i in range(len(self.__symbol)):
+            self.__symbol[i] += new_offset - self.__offset
+        self.__offset = new_offset
+
+    def clear_offset(self) -> None:
+        for i in range(len(self.__symbol)):
+            self.__symbol[i] = -1
+        self.__offset = -1
+        self.__detect_count = 0
 
 
 def compare_np_array(a: Any, b: Any) -> bool:
