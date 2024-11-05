@@ -355,6 +355,7 @@ class Synchronization:
         self.BUFFER_LENGTH: int = self.SYMBOL_NUMBER * N
         self.CORRELATE_THRESHOLD: float = 0.125
         self.ONE_CYCLE_BUFFER_LENGTH: int = N
+        self.SYMBOL_RANGE: int = int(0.025 * N)
 
         self.__is_detect_signal: bool = False
         # 0~2N-1
@@ -362,15 +363,19 @@ class Synchronization:
         self.__offset: int = -1
         self.__detect_count: int = 0
         self.__symbol = np.array([-1] * 9, dtype=np.int32)
+        self.__x_one_cycle = np.zeros(self.ONE_CYCLE_BUFFER_LENGTH, dtype=np.float64)
 
-    def __search_rising(self, x: NDArray[np.float64]) -> None:
-        # シフト
+    def __shift(self) -> None:
         if self.__offset - N >= 0:
             self.__offset -= N
+        for i in range(len(self.__symbol)):
+            if self.__symbol[i] >= 0:
+                self.__symbol[i] -= N
 
-        if 0 < self.__detect_count < 10:
+    def __search_rising(self, x: NDArray[np.float64]) -> None:
+        if self.__is_detect_signal == True and 0 < self.__detect_count < 10:
             return
-        if self.__detect_count == 10:
+        if self.__is_detect_signal == True and self.__detect_count == 10:
             self.__is_detect_signal = False
             self.__detect_count = 0
             self.__offset = self.__offset % N + self.BUFFER_LENGTH
@@ -412,75 +417,101 @@ class Synchronization:
         R: NDArray[np.float64]
         index: NDArray[np.int32]
 
+    def __correlate(self, x: NDArray[np.float64]) -> Result:
+        # 相互相関関数を求めるために、1周期を切り取る
+        if self.__detect_count == 0:
+            for i in range(self.ONE_CYCLE_BUFFER_LENGTH):
+                self.__x_one_cycle[i] = x[i + self.__offset]
+
+        # 相関を求める
+        R = scipy.signal.correlate(x, self.__x_one_cycle)
+
+        index = np.arange(len(R)) - self.ONE_CYCLE_BUFFER_LENGTH + 1
+        signal_index = np.array([], dtype=np.int32)
+        return self.Result(signal_index=signal_index, R=R, index=index)
+
+    def __search_first_data(self, res: Result) -> None:
+        if self.__detect_count != 0:
+            return
+        last_detect: int = -1
+        for i in range(len(res.R)):
+            if res.R[i].real > self.CORRELATE_THRESHOLD:
+                if last_detect == -1:
+                    res.signal_index = np.append(res.signal_index, res.index[i])
+                    last_detect = i
+                    # TODO: index[i]が適切か確認
+                    self.__symbol[self.__detect_count] = res.index[i]
+                    self.__detect_count += 1
+                else:
+                    # signal_indexからindexに変換
+                    near: int = res.signal_index[-1] + self.ONE_CYCLE_BUFFER_LENGTH - 1
+                    if res.R[i].real > res.R[near].real:
+                        res.signal_index[-1] = res.index[i]
+                        self.__symbol[self.__detect_count] = res.index[i]
+            # 0個目のデータの探索が完了していれば終了
+            if last_detect != -1 and i - last_detect > int(0.2 * N):
+                break
+        if self.__detect_count == 0:
+            return
+        for i in range(1, len(self.__symbol)):
+            self.__symbol[i] = self.__symbol[0] + i * N
+
+    def __is_detected(
+        self, symbol: NDArray[np.int32], index: int, detect_count: int
+    ) -> bool:
+        for i in range(len(symbol)):
+            if index - self.SYMBOL_RANGE < symbol[i] < index + self.SYMBOL_RANGE:
+                return detect_count > i
+        # 信号のインデックスの合う範囲がなければFalse
+        return False
+
+    def __search_other_data(self, res: Result) -> None:
+        last_detect: int = -1
+        for i in range(len(res.R)):
+            if res.R[i].real > self.CORRELATE_THRESHOLD:
+                if self.__is_detected(self.__symbol, res.index[i], self.__detect_count):
+                    continue
+                # データがあればsignal_indexに追加
+                if (
+                    res.index[i] - self.SYMBOL_RANGE
+                    < self.__symbol[self.__detect_count]
+                    < res.index[i] + self.SYMBOL_RANGE
+                ):
+                    res.signal_index = np.append(
+                        res.signal_index, self.__symbol[self.__detect_count]
+                    )
+                    last_detect = i
+                    self.__detect_count += 1
+            # データが見当たらなければ終了
+            if last_detect != -1 and i - last_detect > int(1.2 * N):
+                break
+
     def calculate(self, x: NDArray[np.float64]) -> Result:
         assert len(x) == self.BUFFER_LENGTH, "length error"
-
+        self.__shift()
         self.__search_rising(x)
         if self.__is_detect_signal == False:
             return self.Result(
                 signal_index=np.array([]), R=np.array([]), index=np.array([])
             )
+        res = self.__correlate(x)
+        self.__search_first_data(res)
+        self.__search_other_data(res)
 
-        # 相互相関関数を求めるために、1周期を切り取る
-        x_one_cycle = np.zeros(self.ONE_CYCLE_BUFFER_LENGTH, dtype=np.float64)
-        for i in range(self.ONE_CYCLE_BUFFER_LENGTH):
-            x_one_cycle[i] = x[i + self.__offset]
-
-        # 相関を求める
-        R = scipy.signal.correlate(x, x_one_cycle)
-        index = np.arange(len(R)) - self.ONE_CYCLE_BUFFER_LENGTH + 1
-
-        def is_detected(
-            symbol: NDArray[np.int32], signal_index: int, detect_count: int
-        ) -> bool:
-            RANGE: int = int(0.025 * N)
-            for i in range(len(symbol)):
-                if signal_index - RANGE < symbol[i] < signal_index + RANGE:
-                    return detect_count > i
-            # 信号のインデックスの合う範囲がなければFalse
-            return False
-
-        # TODO: 0~9の場合の処理を実装する
-
-        signal_index = np.array([], dtype=np.int32)
-        last_detect: int = -1
-
-        # 0個目のデータを探す
-        if self.__detect_count == 0:
-            for i in range(len(R)):
-                if R[i].real > self.CORRELATE_THRESHOLD:
-                    if last_detect == -1:
-                        signal_index = np.append(signal_index, index[i])
-                        last_detect = i
-                        # TODO: index[i]が適切か確認
-                        self.__symbol[self.__detect_count] = index[i]
-                        self.__detect_count += 1
-                    else:
-                        # signal_indexからindexに変換
-                        near: int = signal_index[-1] + self.ONE_CYCLE_BUFFER_LENGTH - 1
-                        if R[i].real > R[near].real:
-                            signal_index[-1] = index[i]
-                            self.__symbol[self.__detect_count] = index[i]
-                # 0個目のデータが発見されていれば終了
-                if last_detect != -1 and i - last_detect > int(0.2 * N):
-                    break
-            if self.__detect_count == 0:
-                self.__is_detect_signal = False
-                return self.Result(signal_index=signal_index, R=R, index=index)
-            for i in range(1, len(self.__symbol)):
-                self.__symbol[i] = self.__symbol[0] + i * N
-        # 0個目以降のデータを探す
-
-        self.__is_detect_signal = len(signal_index) > 0
-        return self.Result(signal_index=signal_index, R=R, index=index)
+        self.__is_detect_signal = len(res.signal_index) > 0
+        return res
 
     def is_detect_signal(self) -> bool:
         return self.__is_detect_signal
 
-    def set_offset(self, new_offset: int) -> None:
+    def set_offset(self, shift: int) -> None:
         for i in range(len(self.__symbol)):
-            self.__symbol[i] += new_offset - self.__offset
-        self.__offset = new_offset
+            self.__symbol[i] += shift
+        self.__offset += shift
+
+    def set_failed_count(self, failed: int) -> None:
+        assert self.__detect_count - failed >= 0
+        self.__detect_count -= failed
 
     def clear_offset(self) -> None:
         for i in range(len(self.__symbol)):
@@ -496,6 +527,9 @@ def compare_np_array(a: Any, b: Any) -> bool:
         if a[i] != b[i]:
             return False
     return True
+
+
+# TODO: original_dataは関数の引数からも設定できるようにする。主にtestでコーナーケースをつくため
 
 
 def single_signal() -> Tuple[Modulation.Result, Demodulation.Result]:
@@ -570,9 +604,10 @@ def plot_single_signal(
     plt.show()
 
 
-def multi_signal() -> (
-    Tuple[Modulation.Result, Demodulation.Result, Synchronization.Result]
-):
+# TODO: multi_signalというのは適切な名前でないので変更する
+def multi_signal(
+    LEN: int, SHIFT: int
+) -> Tuple[Modulation.Result, Demodulation.Result, Synchronization.Result]:
     original_data = np.concatenate(
         ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55]),
         dtype=np.int32,
@@ -582,50 +617,55 @@ def multi_signal() -> (
     mod = Modulation()
     res_mod = mod.calculate_no_carrier(original_data)
     ifft_x = res_mod.ifft_x
-    ifft_t = res_mod.ifft_t
-    t16 = np.zeros(len(ifft_t) * 16)
-    x16 = np.zeros(len(ifft_x) * 16, dtype=np.float64)
+    x = np.zeros(LEN * N, dtype=np.float64)
     dt = 1 / SAMPLING_FREQUENCY
-    for i in range(len(t16)):
-        t16[i] = i * dt
-        x16[i] = ifft_x[i % N]
-    for i in range(N):
-        x16[9 * N + i] = 0
-    # shift
-    shift = random.randint(0, 10 * N)
-    print("shift = ", shift)
-    x16 = np.pad(x16, (shift, 0))[0 : len(x16)]
+    for i in range(len(x)):
+        if 9 * N <= i % (10 * N) < 10 * N:
+            x[i] = 0
+        else:
+            x[i] = ifft_x[i % N]
+    print("shift = ", SHIFT)
+    # SHIFTの数だけ0を追加
+    x = np.pad(x, (SHIFT, 0))[0 : len(x)]
     sync = Synchronization()
-    res_sync = sync.calculate(x16)
+    res_sync = sync.calculate(x)
     signal_index = res_sync.signal_index
 
     assert sync.is_detect_signal() == True, "no signal"
     print("signal index = ", signal_index)
     # 復調
     demod = Demodulation()
-    SHIFT: int = 10
-    shift_cnt: int = 0
     demod_t = np.arange(N) * dt
     demod_x = np.zeros(N, dtype=np.float64)
+    failed: int = 0
+    # TODO: バッファーの長さではなく、LENに対応したものを実装する
     for i in range(len(signal_index)):
-        # 信号が見当たらない場合はオフセットがずれている可能性があるので、少しシフトしてもう一度復調する。
-        if signal_index[i] - (SHIFT - 1) + N - 1 >= sync.BUFFER_LENGTH:
-            break
-        for shift_cnt in range(SHIFT):
+        print(i)
+        for shift_cnt in range(-SHIFT, SHIFT):
             print(f"shift_cnt = {shift_cnt}")
-            if signal_index[i] - shift_cnt + N - 1 >= sync.BUFFER_LENGTH:
-                break
+            if (
+                signal_index[i] - shift_cnt < 0
+                or signal_index[i] - shift_cnt + N - 1 >= sync.BUFFER_LENGTH
+            ):
+                continue
             for j in range(N):
-                demod_x[j] = x16[signal_index[i] + j - shift_cnt]
+                demod_x[j] = x[signal_index[i] + j - shift_cnt]
             res_demod = demod.calculate_no_carrier(demod_t, demod_x)
             ans_data = res_demod.data
             if res_demod.is_success == True:
+                if shift_cnt != 0:
+                    sync.set_offset(shift_cnt)
                 break
+        if res_demod.is_success == False:
+            failed += 1
         print("ans", ans_data)
+        """
         assert (
             res_demod.is_success == True
         ), f"original = {original_data}, answer = {ans_data}"
         npt.assert_equal(original_data, ans_data)
+        """
+    sync.set_failed_count(failed)
     return res_mod, res_demod, res_sync
 
 
