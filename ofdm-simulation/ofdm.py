@@ -6,10 +6,7 @@ from typing import Any, List, Tuple
 import scipy.signal
 import scipy.interpolate
 import matplotlib.pyplot as plt
-import cmath
 import bisect
-import math
-import sys
 import random
 
 # japanize-matplotlibの代替(Python3.12以降はjapanize-matplotlibは動かないらしいので)
