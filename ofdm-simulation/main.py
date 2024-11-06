@@ -22,7 +22,7 @@ if args.single:
     if args.plot:
         plot_single_signal(res_mod, res_demod)
 elif args.multi:
-    res_mod, res_demod, res_sync = multi_signal()
+    res_mod, res_demod, res_sync = multi_signal(SYMBOL_NUMBER=10, SHIFT=0)
     if args.plot:
         plot_multi_signal(res_sync)
 elif args.multi_endurance is not None:

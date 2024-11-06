@@ -8,6 +8,7 @@ import scipy.interpolate
 import matplotlib.pyplot as plt
 import bisect
 import random
+import math
 
 # japanize-matplotlibの代替(Python3.12以降はjapanize-matplotlibは動かないらしいので)
 import matplotlib_fontja
@@ -606,7 +607,7 @@ def plot_single_signal(
 
 # TODO: multi_signalというのは適切な名前でないので変更する
 def multi_signal(
-    LEN: int, SHIFT: int
+    SYMBOL_NUMBER: int, SHIFT: int
 ) -> Tuple[Modulation.Result, Demodulation.Result, Synchronization.Result]:
     original_data = np.concatenate(
         ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55]),
@@ -617,7 +618,7 @@ def multi_signal(
     mod = Modulation()
     res_mod = mod.calculate_no_carrier(original_data)
     ifft_x = res_mod.ifft_x
-    x = np.zeros(LEN * N, dtype=np.float64)
+    x = np.zeros(SYMBOL_NUMBER * N, dtype=np.float64)
     dt = 1 / SAMPLING_FREQUENCY
     for i in range(len(x)):
         if 9 * N <= i % (10 * N) < 10 * N:
@@ -626,46 +627,60 @@ def multi_signal(
             x[i] = ifft_x[i % N]
     print("shift = ", SHIFT)
     # SHIFTの数だけ0を追加
-    x = np.pad(x, (SHIFT, 0))[0 : len(x)]
-    sync = Synchronization()
-    res_sync = sync.calculate(x)
-    signal_index = res_sync.signal_index
-
-    assert sync.is_detect_signal() == True, "no signal"
-    print("signal index = ", signal_index)
-    # 復調
+    # 長さのきりが悪いと扱いにくいのでlen(x)はNの倍数となるようにする
+    x = np.concatenate(
+        (np.zeros(SHIFT), x, np.zeros((len(x) + SHIFT) % N)), dtype=np.float64
+    )
+    # デバッグ用assert
+    assert len(x) % N == 0
     demod = Demodulation()
-    demod_t = np.arange(N) * dt
-    demod_x = np.zeros(N, dtype=np.float64)
-    failed: int = 0
-    # TODO: バッファーの長さではなく、LENに対応したものを実装する
-    for i in range(len(signal_index)):
-        print(i)
-        for shift_cnt in range(-SHIFT, SHIFT):
-            print(f"shift_cnt = {shift_cnt}")
-            if (
-                signal_index[i] - shift_cnt < 0
-                or signal_index[i] - shift_cnt + N - 1 >= sync.BUFFER_LENGTH
-            ):
-                continue
-            for j in range(N):
-                demod_x[j] = x[signal_index[i] + j - shift_cnt]
-            res_demod = demod.calculate_no_carrier(demod_t, demod_x)
-            ans_data = res_demod.data
-            if res_demod.is_success == True:
-                if shift_cnt != 0:
-                    sync.set_offset(shift_cnt)
-                break
-        if res_demod.is_success == False:
-            failed += 1
-        print("ans", ans_data)
-        """
-        assert (
-            res_demod.is_success == True
-        ), f"original = {original_data}, answer = {ans_data}"
-        npt.assert_equal(original_data, ans_data)
-        """
-    sync.set_failed_count(failed)
+    sync = Synchronization()
+
+    def demodulete_process(
+        x_split: NDArray[np.float64],
+    ) -> Tuple[Demodulation.Result, Synchronization.Result]:
+        res_sync = sync.calculate(x_split)
+        signal_index = res_sync.signal_index
+
+        assert sync.is_detect_signal() == True, "no signal"
+        print("signal index = ", signal_index)
+        # 復調
+        demod_t = np.arange(N) * dt
+        demod_x = np.zeros(N, dtype=np.float64)
+        failed: int = 0
+        for i in range(len(signal_index)):
+            for shift_cnt in range(-SHIFT, SHIFT):
+                print(f"shift_cnt = {shift_cnt}")
+                if (
+                    signal_index[i] - shift_cnt < 0
+                    or signal_index[i] - shift_cnt + N - 1 >= sync.BUFFER_LENGTH
+                ):
+                    continue
+                for j in range(N):
+                    demod_x[j] = x[signal_index[i] + j - shift_cnt]
+                res_demod = demod.calculate_no_carrier(demod_t, demod_x)
+                ans_data = res_demod.data
+                if res_demod.is_success == True:
+                    if shift_cnt != 0:
+                        sync.set_offset(shift_cnt)
+                    break
+            if res_demod.is_success == False:
+                failed += 1
+            print("ans", ans_data)
+            """
+            assert (
+                res_demod.is_success == True
+            ), f"original = {original_data}, answer = {ans_data}"
+            npt.assert_equal(original_data, ans_data)
+            """
+        sync.set_failed_count(failed)
+        return res_demod, res_sync
+
+    res_demod: Demodulation.Result = None
+    res_sync: Synchronization.Result = None
+    for i in range(len(x), N):
+        res_demod, res_sync = demodulete_process(x[i : i + N])
+
     return res_mod, res_demod, res_sync
 
 
