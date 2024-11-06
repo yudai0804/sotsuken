@@ -676,8 +676,8 @@ def multi_signal(
         sync.set_failed_count(failed)
         return res_demod, res_sync
 
-    res_demod: Demodulation.Result = None
-    res_sync: Synchronization.Result = None
+    res_demod: Demodulation.Result
+    res_sync: Synchronization.Result
     for i in range(len(x), N):
         res_demod, res_sync = demodulete_process(x[i : i + N])
 

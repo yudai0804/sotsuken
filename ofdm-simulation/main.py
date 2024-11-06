@@ -29,4 +29,5 @@ elif args.multi_endurance is not None:
     assert args.plot == False, "plotオプションは不要です"
     for i in range(args.multi_endurance):
         print(f"cnt={i}")
-        multi_signal()
+        # TODO: 値は適当なので後で変更する
+        multi_signal(SYMBOL_NUMBER=10, SHIFT=0)
