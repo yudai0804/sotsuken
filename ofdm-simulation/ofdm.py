@@ -8,6 +8,7 @@ import scipy.interpolate
 import matplotlib.pyplot as plt
 import bisect
 import random
+import math
 
 # japanize-matplotlibの代替(Python3.12以降はjapanize-matplotlibは動かないらしいので)
 import matplotlib_fontja
@@ -349,13 +350,68 @@ class Synchronization:
     def __init__(self) -> None:
         # 根拠なきお気持ちパラメーター
         # ここらへんのパラメーターはNなどを変更したら、調整しないと動かないときがあるので注意
+
         self.MINIMUM_VOLTAGE: float = 0.0005
         self.EDGE_THRESHOLD: float = 0.0025
-        self.BUFFER_LENGTH: int = 16 * N
+        # SYMBOL_NUMBERが1だとオフセットがずれていた場合に復調できないことがあるので、3が最小(2と効率が変わらない)
+        self.SYMBOL_NUMBER: int = 3
+        self.BUFFER_LENGTH: int = self.SYMBOL_NUMBER * N
         self.CORRELATE_THRESHOLD: float = 0.125
         self.ONE_CYCLE_BUFFER_LENGTH: int = N
+        self.SYMBOL_RANGE: int = int(0.025 * N)
 
         self.__is_detect_signal: bool = False
+        # 0~2N-1
+        # offsetが2Nより大きい値になってしまうと、インデックスが3N-1からはみ出てしまうので最大でも2N-1
+        self.__offset: int = 0
+        self.__detect_count: int = 0
+        self.__symbol = np.array([-1] * 9, dtype=np.int32)
+        self.__x_one_cycle = np.zeros(self.ONE_CYCLE_BUFFER_LENGTH, dtype=np.float64)
+
+    def __shift(self) -> None:
+        if self.__offset - N >= 0:
+            self.__offset -= N
+        for i in range(len(self.__symbol)):
+            self.__symbol[i] -= N
+
+    def __search_rising(self, x: NDArray[np.float64]) -> None:
+        if self.__is_detect_signal == True and 0 < self.__detect_count < 9:
+            return
+        if self.__is_detect_signal == True and self.__detect_count == 9:
+            self.__is_detect_signal = False
+            self.__detect_count = 0
+            self.__offset = self.__symbol[-1]
+            return
+        # self.__detect_count == 0のとき
+
+        sum: float = 0
+        # 過去のオフセットを使用する場合はは少し戻す
+        self.__offset -= 10
+        if self.__offset < 0:
+            self.__offset = 0
+        # 積分をして信号の立ち上がりを探す
+        self.__is_detect_signal = False
+        for i in range(self.__offset, len(x) - N):
+            # 電圧が小さい場合は無信号時のノイズなのでcontinue
+            if abs(x[i]) < self.MINIMUM_VOLTAGE:
+                continue
+            sum += abs(x[i])
+            if sum >= self.EDGE_THRESHOLD:
+                self.__is_detect_signal = True
+                self.__offset = i
+                break
+
+        if self.__is_detect_signal == False:
+            self.clear_offset()
+            return
+        # 正確な立ち上がり時間を求めるために前の時間を探索
+        cnt: int = 0
+        while self.__offset > 0 and cnt < 10:
+            sum -= abs(x[self.__offset])
+            if sum < self.MINIMUM_VOLTAGE:
+                break
+            self.__offset -= 1
+            cnt += 1
 
     class Result(BaseModel):
         model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -364,75 +420,83 @@ class Synchronization:
         R: NDArray[np.float64]
         index: NDArray[np.int32]
 
-    def calculate(self, x: NDArray[np.float64]) -> Result:
-        assert len(x) == self.BUFFER_LENGTH, "length error"
-
-        sum: float = 0
-        offset: int = -1
-        # 積分をして信号の立ち上がりを探す
-        for i in range(len(x)):
-            # 電圧が小さい場合は無信号時のノイズなのでcontinue
-            if abs(x[i]) < self.MINIMUM_VOLTAGE:
-                continue
-            sum += abs(x[i])
-            if sum >= self.EDGE_THRESHOLD:
-                offset = i
-                break
-
-        # 積分した結果、信号を見つけられなかった場合
-        if offset == -1:
-            self.__is_detect_signal = False
-            return self.Result(
-                signal_index=np.array([], dtype=np.int32),
-                R=np.array([], dtype=np.float64),
-                index=np.array([], np.int32),
-            )
-
-        # 正確な立ち上がり時間を求めるために前の時間を探索
-        cnt: int = 0
-        while offset > 0 and cnt < 10:
-            sum -= abs(x[offset])
-            if sum < self.MINIMUM_VOLTAGE:
-                break
-            offset -= 1
-            cnt += 1
-
-        # 相互相関関数を求めるために、1周期だけを切り取る
-        # 積分だけでは正確な立ち上がりは検出できないため、少し多めに読む
-        x_one_cycle = np.zeros(self.ONE_CYCLE_BUFFER_LENGTH, dtype=np.float64)
-        for i in range(self.ONE_CYCLE_BUFFER_LENGTH):
-            x_one_cycle[i] = x[i + offset]
+    def __correlate(self, x: NDArray[np.float64]) -> Result:
+        # 相互相関関数を求めるために、1周期を切り取る
+        if self.__detect_count == 0:
+            for i in range(self.ONE_CYCLE_BUFFER_LENGTH):
+                self.__x_one_cycle[i] = x[i + self.__offset]
 
         # 相関を求める
-        R = scipy.signal.correlate(x, x_one_cycle)
+        R = scipy.signal.correlate(x, self.__x_one_cycle)
+
         index = np.arange(len(R)) - self.ONE_CYCLE_BUFFER_LENGTH + 1
-
         signal_index = np.array([], dtype=np.int32)
-        last_detect = -1
-        for i in range(len(R)):
-            if R[i].real > self.CORRELATE_THRESHOLD:
-                # 最後に見つかったのが近くだった場合
-                if last_detect != -1 and i - last_detect < int(0.05 * N):
-                    # signal_indexからindexに変換
-                    near: int = signal_index[-1] + self.ONE_CYCLE_BUFFER_LENGTH - 1
-                    if R[i].real > R[near].real:
-                        signal_index[-1] = index[i]
-                    continue
-                # 本来見つからない場所で見つかった場合はスキップ
-                if last_detect != -1 and i - last_detect < int(0.8 * N):
-                    continue
-                # オフセット分ずらす
-                signal_index = np.append(signal_index, index[i])
-                last_detect = i
-            # 1周期ちょっと離れても、信号が見つからない場合は終了
-            if last_detect != -1 and i - last_detect > int(1.5 * N):
-                break
-
-        self.__is_detect_signal = len(signal_index) > 0
         return self.Result(signal_index=signal_index, R=R, index=index)
+
+    def __is_detected(self, index: int) -> bool:
+        if self.__detect_count == 0:
+            return False
+        for i in range(len(self.__symbol)):
+            if index - self.SYMBOL_RANGE < self.__symbol[i] < index + self.SYMBOL_RANGE:
+                return self.__detect_count > i
+        # 信号のインデックスの合う範囲がなければFalse
+        return False
+
+    def __search_data(self, res: Result) -> None:
+        last_detect: int = -1
+        for i in range(len(res.R)):
+            if res.R[i].real > self.CORRELATE_THRESHOLD:
+                if last_detect == -1 and self.__is_detected(res.index[i]) == False:
+                    res.signal_index = np.append(res.signal_index, res.index[i])
+                    last_detect = i
+                    self.__symbol[self.__detect_count] = res.index[i]
+                    self.__detect_count += 1
+                elif self.__is_detected(res.index[i]) and len(res.signal_index) > 0:
+                    # signal_indexからindexに変換
+                    near: int = res.signal_index[-1] + self.ONE_CYCLE_BUFFER_LENGTH - 1
+                    if res.R[i].real > res.R[near].real:
+                        res.signal_index[-1] = res.index[i]
+                        self.__symbol[self.__detect_count - 1] = res.index[i]
+            # データを1つ見つけていれば終了
+            # ループを繰り返せばデータがある可能性はあるが、アルゴリズムをシンプルにするため探索は行わない
+            if last_detect != -1 and i - last_detect > int(0.2 * N):
+                break
+        # 最初の発見データだった場合は今後のシンボルのインデックスを予測
+        if last_detect != -1 and self.__detect_count == 1:
+            for i in range(1, len(self.__symbol)):
+                self.__symbol[i] = self.__symbol[0] + i * N
+
+    def calculate(self, x: NDArray[np.float64]) -> Result:
+        assert len(x) == self.BUFFER_LENGTH, "length error"
+        self.__shift()
+        self.__search_rising(x)
+        if self.__is_detect_signal == False:
+            return self.Result(
+                signal_index=np.array([]), R=np.array([]), index=np.array([])
+            )
+        res = self.__correlate(x)
+        self.__search_data(res)
+
+        self.__is_detect_signal = len(res.signal_index) > 0
+        return res
 
     def is_detect_signal(self) -> bool:
         return self.__is_detect_signal
+
+    def set_offset(self, shift: int) -> None:
+        for i in range(len(self.__symbol)):
+            self.__symbol[i] += shift
+        self.__offset += shift
+
+    def set_failed_count(self, failed: int) -> None:
+        assert self.__detect_count - failed >= 0
+        self.__detect_count -= failed
+
+    def clear_offset(self) -> None:
+        for i in range(len(self.__symbol)):
+            self.__symbol[i] = -1
+        self.__offset = -1
+        self.__detect_count = 0
 
 
 def compare_np_array(a: Any, b: Any) -> bool:
@@ -444,11 +508,14 @@ def compare_np_array(a: Any, b: Any) -> bool:
     return True
 
 
-def single_signal() -> Tuple[Modulation.Result, Demodulation.Result]:
-    original_data = np.concatenate(
-        ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55]),
-        dtype=np.int32,
-    )
+def single_symbol(
+    original_data: NDArray[np.int32] = np.array([], dtype=np.int32),
+) -> Tuple[Modulation.Result, Demodulation.Result]:
+    if len(original_data) == 0:
+        original_data = np.concatenate(
+            ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55]),
+            dtype=np.int32,
+        )
 
     print(original_data)
     mod = Modulation()
@@ -470,7 +537,7 @@ def single_signal() -> Tuple[Modulation.Result, Demodulation.Result]:
     return res_mod, res_demod
 
 
-def plot_single_signal(
+def plot_single_symbol(
     res_mod: Modulation.Result, res_demod: Demodulation.Result
 ) -> None:
     t = res_mod.t
@@ -516,66 +583,102 @@ def plot_single_signal(
     plt.show()
 
 
-def multi_signal() -> (
-    Tuple[Modulation.Result, Demodulation.Result, Synchronization.Result]
-):
-    original_data = np.concatenate(
-        ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55]),
-        dtype=np.int32,
-    )
-
+def multi_symbol(
+    SYMBOL_NUMBER: int,
+    shift: NDArray[np.int32] = np.array([], dtype=np.int32),
+    original_data: NDArray[np.int32] = np.array([], dtype=np.int32),
+) -> Tuple[Modulation.Result, Demodulation.Result, Synchronization.Result]:
+    if len(shift) == 0:
+        shift = np.random.randint(0, 255, size=SYMBOL_NUMBER // 10, dtype=np.int32)
+    if len(original_data) == 0:
+        original_data = np.zeros((SYMBOL_NUMBER // 10, 12), dtype=np.int32)
+        for i in range(len(original_data)):
+            original_data[i] = np.concatenate(
+                ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55]),
+                dtype=np.int32,
+            )
+    print("original_data")
     print(original_data)
-    mod = Modulation()
-    res_mod = mod.calculate_no_carrier(original_data)
-    ifft_x = res_mod.ifft_x
-    ifft_t = res_mod.ifft_t
-    t16 = np.zeros(len(ifft_t) * 16)
-    x16 = np.zeros(len(ifft_x) * 16, dtype=np.float64)
-    dt = 1 / SAMPLING_FREQUENCY
-    for i in range(len(t16)):
-        t16[i] = i * dt
-        x16[i] = ifft_x[i % N]
-    for i in range(N):
-        x16[9 * N + i] = 0
-    # shift
-    shift = random.randint(0, 10 * N)
-    print("shift = ", shift)
-    x16 = np.pad(x16, (shift, 0))[0 : len(x16)]
-    sync = Synchronization()
-    res_sync = sync.calculate(x16)
-    signal_index = res_sync.signal_index
+    print("shift")
+    print(shift)
 
-    assert sync.is_detect_signal() == True, "no signal"
-    print("signal index = ", signal_index)
-    # 復調
+    SHIFT_CNT: int = 5
+
+    mod = Modulation()
     demod = Demodulation()
-    SHIFT: int = 10
-    shift_cnt: int = 0
-    demod_t = np.arange(N) * dt
-    demod_x = np.zeros(N, dtype=np.float64)
-    for i in range(len(signal_index)):
-        # 信号が見当たらない場合はオフセットがずれている可能性があるので、少しシフトしてもう一度復調する。
-        if signal_index[i] - (SHIFT - 1) + N - 1 >= sync.BUFFER_LENGTH:
-            break
-        for shift_cnt in range(SHIFT):
-            print(f"shift_cnt = {shift_cnt}")
-            if signal_index[i] - shift_cnt + N - 1 >= sync.BUFFER_LENGTH:
-                break
-            for j in range(N):
-                demod_x[j] = x16[signal_index[i] + j - shift_cnt]
-            res_demod = demod.calculate_no_carrier(demod_t, demod_x)
-            ans_data = res_demod.data
-            if res_demod.is_success == True:
-                break
-        print("ans", ans_data)
-        assert (
-            res_demod.is_success == True
-        ), f"original = {original_data}, answer = {ans_data}"
-        npt.assert_equal(original_data, ans_data)
+    sync = Synchronization()
+    res_mod: Modulation.Result
+    res_demod: Demodulation.Result
+    res_sync: Synchronization.Result
+
+    x = np.array([], dtype=np.float64)
+    for i in range(len(original_data)):
+        res_mod = mod.calculate_no_carrier(original_data[i])
+        ifft_x = res_mod.ifft_x
+        dt = 1 / SAMPLING_FREQUENCY
+        _x = np.zeros(shift[i] + 10 * N, dtype=np.float64)
+        for j in range(10 * N):
+            if j >= 9 * N:
+                _x[j + shift[i]] = 0
+            else:
+                _x[j + shift[i]] = ifft_x[j % N]
+        x = np.concatenate((x, _x))
+    # 扱いやすいように長さをNの倍数にする
+    x = np.concatenate((x, np.zeros((N - (len(x) % N) % N))))
+    # 末尾に0を追加
+    x = np.concatenate((x, np.zeros(sync.BUFFER_LENGTH - N)))
+    assert len(x) % N == 0
+    assert len(x) >= sync.BUFFER_LENGTH
+
+    def demodulete_process(x_split: NDArray[np.float64]) -> bool:
+        nonlocal res_demod, res_sync
+        res_sync = sync.calculate(x_split)
+        signal_index = res_sync.signal_index
+        if len(signal_index) == 0:
+            return False
+
+        print("signal index = ", signal_index)
+        # 復調
+        demod_t = np.arange(N) * dt
+        demod_x = np.zeros(N, dtype=np.float64)
+        for i in range(len(signal_index)):
+            for shift_cnt in range(-SHIFT_CNT, SHIFT_CNT):
+                print(f"shift_cnt = {shift_cnt}")
+                if (
+                    signal_index[i] - shift_cnt < 0
+                    or signal_index[i] - shift_cnt + N - 1 >= sync.BUFFER_LENGTH
+                ):
+                    continue
+                for j in range(N):
+                    demod_x[j] = x_split[signal_index[i] + j - shift_cnt]
+                res_demod = demod.calculate_no_carrier(demod_t, demod_x)
+                ans_data = res_demod.data
+                if res_demod.is_success == True:
+                    if shift_cnt != 0:
+                        sync.set_offset(shift_cnt)
+                    break
+        sync.set_failed_count(int(res_demod.is_success == False))
+        return res_demod.is_success
+
+    # Nずつシフトして、demodulete_processを実行
+    success_cnt: int = 0
+    for i in range(0, len(x) - sync.BUFFER_LENGTH, N):
+        print(f"cnt = {i // N}, {i}, {sync.BUFFER_LENGTH + i}")
+        is_success = demodulete_process(x[i : sync.BUFFER_LENGTH + i])
+        print(is_success)
+        if is_success and success_cnt // 9 < len(original_data):
+            print(res_demod.data)
+            npt.assert_equal(res_demod.data, original_data[success_cnt // 9])
+        success_cnt += int(is_success)
+    print(f"success_cnt = {success_cnt}")
+    assert (
+        success_cnt == SYMBOL_NUMBER - SYMBOL_NUMBER // 10
+    ), f"success_cnt = {success_cnt}, expected_cnt = {SYMBOL_NUMBER - SYMBOL_NUMBER // 10}"
+    print("ok")
     return res_mod, res_demod, res_sync
 
 
-def plot_multi_signal(res_sync: Synchronization.Result) -> None:
+def plot_multi_symbol(res_sync: Synchronization.Result) -> None:
     index = res_sync.index
     R = res_sync.R
     plt.figure()
