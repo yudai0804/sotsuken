@@ -12,7 +12,7 @@ import random
     ("is_no_carrier"),
     [(False), (True)],
 )
-def test_single_signal(is_no_carrier: bool) -> None:
+def test_single_symbol(is_no_carrier: bool) -> None:
     original_data = np.concatenate(
         ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55]),
         dtype=np.int32,
@@ -38,9 +38,9 @@ def test_single_signal(is_no_carrier: bool) -> None:
     npt.assert_equal(original_data, ans_data)
 
 
-def test_multi_signal() -> None:
-    multi_signal(SYMBOL_NUMBER=10)
+def test_multi_symbol() -> None:
+    multi_symbol(SYMBOL_NUMBER=10)
 
 
-def test_multi_signal_endurance() -> None:
-    multi_signal(SYMBOL_NUMBER=1000)
+def test_multi_symbol_endurance() -> None:
+    multi_symbol(SYMBOL_NUMBER=1000)

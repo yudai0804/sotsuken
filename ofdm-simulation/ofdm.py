@@ -511,7 +511,7 @@ def compare_np_array(a: Any, b: Any) -> bool:
 # TODO: original_dataは関数の引数からも設定できるようにする。主にtestでコーナーケースをつくため
 
 
-def single_signal() -> Tuple[Modulation.Result, Demodulation.Result]:
+def single_symbol() -> Tuple[Modulation.Result, Demodulation.Result]:
     original_data = np.concatenate(
         ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55]),
         dtype=np.int32,
@@ -537,7 +537,7 @@ def single_signal() -> Tuple[Modulation.Result, Demodulation.Result]:
     return res_mod, res_demod
 
 
-def plot_single_signal(
+def plot_single_symbol(
     res_mod: Modulation.Result, res_demod: Demodulation.Result
 ) -> None:
     t = res_mod.t
@@ -583,8 +583,7 @@ def plot_single_signal(
     plt.show()
 
 
-# TODO: multi_signalというのは適切な名前でないので変更する
-def multi_signal(
+def multi_symbol(
     SYMBOL_NUMBER: int,
     shift: NDArray[np.int32] = [],
     original_data: NDArray[np.int32] = [],
@@ -635,7 +634,7 @@ def multi_signal(
         nonlocal res_demod, res_sync
         res_sync = sync.calculate(x_split)
         signal_index = res_sync.signal_index
-        # plot_multi_signal(res_sync=res_sync)
+        # plot_multi_symbol(res_sync=res_sync)
         if len(signal_index) == 0:
             return False
 
@@ -680,7 +679,7 @@ def multi_signal(
     return res_mod, res_demod, res_sync
 
 
-def plot_multi_signal(res_sync: Synchronization.Result) -> None:
+def plot_multi_symbol(res_sync: Synchronization.Result) -> None:
     index = res_sync.index
     R = res_sync.R
     plt.figure()

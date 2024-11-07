@@ -18,13 +18,13 @@ import signal
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 
 if args.single:
-    res_mod, res_demod = single_signal()
+    res_mod, res_demod = single_symbol()
     if args.plot:
-        plot_single_signal(res_mod, res_demod)
+        plot_single_symbol(res_mod, res_demod)
 elif args.multi:
-    res_mod, res_demod, res_sync = multi_signal(SYMBOL_NUMBER=10)
+    res_mod, res_demod, res_sync = multi_symbol(SYMBOL_NUMBER=10)
     if args.plot:
-        plot_multi_signal(res_sync)
+        plot_multi_symbol(res_sync)
 elif args.multi_endurance is not None:
     assert args.plot == False, "plotオプションは不要です"
-    multi_signal(SYMBOL_NUMBER=args.multi_endurance)
+    multi_symbol(SYMBOL_NUMBER=args.multi_endurance)
