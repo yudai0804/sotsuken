@@ -4,7 +4,7 @@ parser = argparse.ArgumentParser()
 group_mode = parser.add_mutually_exclusive_group(required=True)
 group_mode.add_argument("--single", action="store_true")
 group_mode.add_argument("--multi", action="store_true")
-group_mode.add_argument("--multi_endurance", type=int)
+group_mode.add_argument("--multi-endurance", type=int)
 
 parser.add_argument("--plot", action="store_true")
 
