@@ -350,6 +350,7 @@ class Synchronization:
     def __init__(self) -> None:
         # 根拠なきお気持ちパラメーター
         # ここらへんのパラメーターはNなどを変更したら、調整しないと動かないときがあるので注意
+
         self.MINIMUM_VOLTAGE: float = 0.0005
         self.EDGE_THRESHOLD: float = 0.0025
         # SYMBOL_NUMBERが1だとオフセットがずれていた場合に復調できないことがあるので、3が最小(2と効率が変わらない)
@@ -362,7 +363,7 @@ class Synchronization:
         self.__is_detect_signal: bool = False
         # 0~2N-1
         # offsetが2Nより大きい値になってしまうと、インデックスが3N-1からはみ出てしまうので最大でも2N-1
-        self.__offset: int = -1
+        self.__offset: int = 0
         self.__detect_count: int = 0
         self.__symbol = np.array([-1] * 9, dtype=np.int32)
         self.__x_one_cycle = np.zeros(self.ONE_CYCLE_BUFFER_LENGTH, dtype=np.float64)
@@ -374,22 +375,23 @@ class Synchronization:
             self.__symbol[i] -= N
 
     def __search_rising(self, x: NDArray[np.float64]) -> None:
-        if self.__is_detect_signal == True and 0 < self.__detect_count < 10:
+        if self.__is_detect_signal == True and 0 < self.__detect_count < 9:
             return
-        if self.__is_detect_signal == True and self.__detect_count == 10:
+        if self.__is_detect_signal == True and self.__detect_count == 9:
             self.__is_detect_signal = False
             self.__detect_count = 0
-            self.__offset = self.__offset % N + self.BUFFER_LENGTH
+            self.__offset = self.__symbol[-1]
             return
         # self.__detect_count == 0のとき
+
         sum: float = 0
         # 過去のオフセットを使用する場合はは少し戻す
         self.__offset -= 10
         if self.__offset < 0:
-            self.__offset = -1
+            self.__offset = 0
         # 積分をして信号の立ち上がりを探す
         self.__is_detect_signal = False
-        for i in range(len(x) - N):
+        for i in range(self.__offset, len(x) - N):
             # 電圧が小さい場合は無信号時のノイズなのでcontinue
             if abs(x[i]) < self.MINIMUM_VOLTAGE:
                 continue
@@ -449,7 +451,7 @@ class Synchronization:
                     last_detect = i
                     self.__symbol[self.__detect_count] = res.index[i]
                     self.__detect_count += 1
-                else:
+                elif self.__is_detected(res.index[i]) and len(res.signal_index) > 0:
                     # signal_indexからindexに変換
                     near: int = res.signal_index[-1] + self.ONE_CYCLE_BUFFER_LENGTH - 1
                     if res.R[i].real > res.R[near].real:
@@ -583,47 +585,54 @@ def plot_single_signal(
 
 # TODO: multi_signalというのは適切な名前でないので変更する
 def multi_signal(
-    SYMBOL_NUMBER: int, SHIFT: int
+    SYMBOL_NUMBER: int,
+    shift: NDArray[np.int32] = [],
+    original_data: NDArray[np.int32] = [],
 ) -> Tuple[Modulation.Result, Demodulation.Result, Synchronization.Result]:
-    original_data = np.concatenate(
-        ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55]),
-        dtype=np.int32,
-    )
-
+    if len(shift) == 0:
+        shift = np.random.randint(0, 255, size=SYMBOL_NUMBER // 10, dtype=np.int32)
+    if len(original_data) == 0:
+        original_data = np.zeros((SYMBOL_NUMBER // 10, 12), dtype=np.int32)
+        for i in range(len(original_data)):
+            original_data[i] = np.concatenate(
+                ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55]),
+                dtype=np.int32,
+            )
+    print("original_data")
     print(original_data)
-    mod = Modulation()
-    demod = Demodulation()
-    sync = Synchronization()
-    res_mod = mod.calculate_no_carrier(original_data)
-    ifft_x = res_mod.ifft_x
-    x = np.zeros(SYMBOL_NUMBER * N, dtype=np.float64)
-    dt = 1 / SAMPLING_FREQUENCY
-    for i in range(len(x)):
-        if 9 * N <= i % (10 * N) < 10 * N:
-            x[i] = 0
-        else:
-            x[i] = ifft_x[i % N]
-    print("shift = ", SHIFT)
-    # SHIFTの数だけ0を追加
-    # 長さのきりが悪いと扱いにくいのでlen(x)はNの倍数となるようにする
-    x = np.concatenate(
-        (np.zeros(SHIFT), x, np.zeros((N - (SHIFT % N)) % N)), dtype=np.float64
-    )
-    # 末尾に0を追加
-    x = np.concatenate((x, np.zeros(sync.BUFFER_LENGTH - N)), dtype=np.float64)
-    assert len(x) % N == 0
-    assert len(x) >= sync.BUFFER_LENGTH
+    print("shift")
+    print(shift)
 
     SHIFT_CNT: int = 5
 
+    mod = Modulation()
+    demod = Demodulation()
+    sync = Synchronization()
+    res_mod: Modulation.Result
     res_demod: Demodulation.Result
     res_sync: Synchronization.Result
 
-    def demodulete_process(
-        x_split: NDArray[np.float64],
-    ) -> bool:
+    x = np.array([], dtype=np.float64)
+    for i in range(len(original_data)):
+        res_mod = mod.calculate_no_carrier(original_data[i])
+        ifft_x = res_mod.ifft_x
+        dt = 1 / SAMPLING_FREQUENCY
+        _x = np.zeros(shift[i] + 10 * N, dtype=np.float64)
+        for j in range(10 * N):
+            if j >= 9 * N:
+                _x[j + shift[i]] = 0
+            else:
+                _x[j + shift[i]] = ifft_x[j % N]
+        x = np.concatenate((x, _x))
+    # 扱いやすいように長さをNの倍数にする
+    x = np.concatenate((x, np.zeros((N - (len(x) % N) % N))))
+    # 末尾に0を追加
+    x = np.concatenate((x, np.zeros(sync.BUFFER_LENGTH - N)))
+    assert len(x) % N == 0
+    assert len(x) >= sync.BUFFER_LENGTH
+
+    def demodulete_process(x_split: NDArray[np.float64]) -> bool:
         nonlocal res_demod, res_sync
-        print(len(x_split))
         res_sync = sync.calculate(x_split)
         signal_index = res_sync.signal_index
         # plot_multi_signal(res_sync=res_sync)
@@ -631,8 +640,6 @@ def multi_signal(
             return False
 
         print("signal index = ", signal_index)
-        # TODO: ここのassertは正常系でもデータがないときに引っかかることがあるので対策する
-        # assert sync.is_detect_signal() == True, "no signal"
         # 復調
         demod_t = np.arange(N) * dt
         demod_x = np.zeros(N, dtype=np.float64)
@@ -645,16 +652,13 @@ def multi_signal(
                 ):
                     continue
                 for j in range(N):
-                    demod_x[j] = x[signal_index[i] + j - shift_cnt]
+                    demod_x[j] = x_split[signal_index[i] + j - shift_cnt]
                 res_demod = demod.calculate_no_carrier(demod_t, demod_x)
                 ans_data = res_demod.data
                 if res_demod.is_success == True:
                     if shift_cnt != 0:
                         sync.set_offset(shift_cnt)
                     break
-            print("ans", ans_data)
-            if res_demod.is_success:
-                npt.assert_equal(original_data, ans_data)
         sync.set_failed_count(int(res_demod.is_success == False))
         return res_demod.is_success
 
@@ -663,9 +667,15 @@ def multi_signal(
     for i in range(0, len(x) - sync.BUFFER_LENGTH, N):
         print(f"cnt = {i // N}, {i}, {sync.BUFFER_LENGTH + i}")
         is_success = demodulete_process(x[i : sync.BUFFER_LENGTH + i])
+        print(is_success)
+        if is_success and success_cnt // 9 < len(original_data):
+            print(res_demod.data)
+            npt.assert_equal(res_demod.data, original_data[success_cnt // 9])
         success_cnt += int(is_success)
     print(f"success_cnt = {success_cnt}")
-    assert success_cnt == SYMBOL_NUMBER - SYMBOL_NUMBER // 10
+    assert (
+        success_cnt == SYMBOL_NUMBER - SYMBOL_NUMBER // 10
+    ), f"success_cnt = {success_cnt}, expected_cnt = {SYMBOL_NUMBER - SYMBOL_NUMBER // 10}"
     print("ok")
     return res_mod, res_demod, res_sync
 

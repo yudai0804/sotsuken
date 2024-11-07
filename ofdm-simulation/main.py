@@ -13,7 +13,6 @@ args = parser.parse_args()
 # argparseの動作を優先するため遅延import
 from ofdm import *
 import signal
-import random
 
 # matplotlibが正常に終了するのに必要
 signal.signal(signal.SIGINT, signal.SIG_DFL)
@@ -23,14 +22,9 @@ if args.single:
     if args.plot:
         plot_single_signal(res_mod, res_demod)
 elif args.multi:
-    res_mod, res_demod, res_sync = multi_signal(
-        SYMBOL_NUMBER=10, SHIFT=random.randint(0, 255)
-    )
+    res_mod, res_demod, res_sync = multi_signal(SYMBOL_NUMBER=10)
     if args.plot:
         plot_multi_signal(res_sync)
 elif args.multi_endurance is not None:
     assert args.plot == False, "plotオプションは不要です"
-    for i in range(args.multi_endurance):
-        print(f"cnt={i}")
-        # TODO: 値は適当なので後で変更する
-        multi_signal(SYMBOL_NUMBER=10, SHIFT=0)
+    multi_signal(SYMBOL_NUMBER=args.multi_endurance)
