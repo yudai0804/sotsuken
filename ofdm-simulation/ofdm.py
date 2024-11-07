@@ -352,6 +352,7 @@ class Synchronization:
         # ここらへんのパラメーターはNなどを変更したら、調整しないと動かないときがあるので注意
         self.MINIMUM_VOLTAGE: float = 0.0005
         self.EDGE_THRESHOLD: float = 0.0025
+        # SYMBOL_NUMBERが1だとオフセットがずれていた場合に復調できないことがあるので、3が最小(2と効率が変わらない)
         self.SYMBOL_NUMBER: int = 3
         self.BUFFER_LENGTH: int = self.SYMBOL_NUMBER * N
         self.CORRELATE_THRESHOLD: float = 0.125
@@ -370,8 +371,7 @@ class Synchronization:
         if self.__offset - N >= 0:
             self.__offset -= N
         for i in range(len(self.__symbol)):
-            if self.__symbol[i] >= 0:
-                self.__symbol[i] -= N
+            self.__symbol[i] -= N
 
     def __search_rising(self, x: NDArray[np.float64]) -> None:
         if self.__is_detect_signal == True and 0 < self.__detect_count < 10:
@@ -431,16 +431,22 @@ class Synchronization:
         signal_index = np.array([], dtype=np.int32)
         return self.Result(signal_index=signal_index, R=R, index=index)
 
-    def __search_first_data(self, res: Result) -> None:
-        if self.__detect_count != 0:
-            return
+    def __is_detected(self, index: int) -> bool:
+        if self.__detect_count == 0:
+            return False
+        for i in range(len(self.__symbol)):
+            if index - self.SYMBOL_RANGE < self.__symbol[i] < index + self.SYMBOL_RANGE:
+                return self.__detect_count > i
+        # 信号のインデックスの合う範囲がなければFalse
+        return False
+
+    def __search_data(self, res: Result) -> None:
         last_detect: int = -1
         for i in range(len(res.R)):
             if res.R[i].real > self.CORRELATE_THRESHOLD:
-                if last_detect == -1:
+                if last_detect == -1 and self.__is_detected(res.index[i]) == False:
                     res.signal_index = np.append(res.signal_index, res.index[i])
                     last_detect = i
-                    # TODO: index[i]が適切か確認
                     self.__symbol[self.__detect_count] = res.index[i]
                     self.__detect_count += 1
                 else:
@@ -448,44 +454,15 @@ class Synchronization:
                     near: int = res.signal_index[-1] + self.ONE_CYCLE_BUFFER_LENGTH - 1
                     if res.R[i].real > res.R[near].real:
                         res.signal_index[-1] = res.index[i]
-                        self.__symbol[self.__detect_count] = res.index[i]
-            # 0個目のデータの探索が完了していれば終了
+                        self.__symbol[self.__detect_count - 1] = res.index[i]
+            # データを1つ見つけていれば終了
+            # ループを繰り返せばデータがある可能性はあるが、アルゴリズムをシンプルにするため探索は行わない
             if last_detect != -1 and i - last_detect > int(0.2 * N):
                 break
-        if self.__detect_count == 0:
-            return
-        for i in range(1, len(self.__symbol)):
-            self.__symbol[i] = self.__symbol[0] + i * N
-
-    def __is_detected(
-        self, symbol: NDArray[np.int32], index: int, detect_count: int
-    ) -> bool:
-        for i in range(len(symbol)):
-            if index - self.SYMBOL_RANGE < symbol[i] < index + self.SYMBOL_RANGE:
-                return detect_count > i
-        # 信号のインデックスの合う範囲がなければFalse
-        return False
-
-    def __search_other_data(self, res: Result) -> None:
-        last_detect: int = -1
-        for i in range(len(res.R)):
-            if res.R[i].real > self.CORRELATE_THRESHOLD:
-                if self.__is_detected(self.__symbol, res.index[i], self.__detect_count):
-                    continue
-                # データがあればsignal_indexに追加
-                if (
-                    res.index[i] - self.SYMBOL_RANGE
-                    < self.__symbol[self.__detect_count]
-                    < res.index[i] + self.SYMBOL_RANGE
-                ):
-                    res.signal_index = np.append(
-                        res.signal_index, self.__symbol[self.__detect_count]
-                    )
-                    last_detect = i
-                    self.__detect_count += 1
-            # データが見当たらなければ終了
-            if last_detect != -1 and i - last_detect > int(1.2 * N):
-                break
+        # 最初の発見データだった場合は今後のシンボルのインデックスを予測
+        if last_detect != -1 and self.__detect_count == 1:
+            for i in range(1, len(self.__symbol)):
+                self.__symbol[i] = self.__symbol[0] + i * N
 
     def calculate(self, x: NDArray[np.float64]) -> Result:
         assert len(x) == self.BUFFER_LENGTH, "length error"
@@ -496,8 +473,7 @@ class Synchronization:
                 signal_index=np.array([]), R=np.array([]), index=np.array([])
             )
         res = self.__correlate(x)
-        self.__search_first_data(res)
-        self.__search_other_data(res)
+        self.__search_data(res)
 
         self.__is_detect_signal = len(res.signal_index) > 0
         return res
@@ -616,6 +592,8 @@ def multi_signal(
 
     print(original_data)
     mod = Modulation()
+    demod = Demodulation()
+    sync = Synchronization()
     res_mod = mod.calculate_no_carrier(original_data)
     ifft_x = res_mod.ifft_x
     x = np.zeros(SYMBOL_NUMBER * N, dtype=np.float64)
@@ -629,27 +607,37 @@ def multi_signal(
     # SHIFTの数だけ0を追加
     # 長さのきりが悪いと扱いにくいのでlen(x)はNの倍数となるようにする
     x = np.concatenate(
-        (np.zeros(SHIFT), x, np.zeros((len(x) + SHIFT) % N)), dtype=np.float64
+        (np.zeros(SHIFT), x, np.zeros((N - (SHIFT % N)) % N)), dtype=np.float64
     )
-    # デバッグ用assert
+    # 末尾に0を追加
+    x = np.concatenate((x, np.zeros(sync.BUFFER_LENGTH - N)), dtype=np.float64)
     assert len(x) % N == 0
-    demod = Demodulation()
-    sync = Synchronization()
+    assert len(x) >= sync.BUFFER_LENGTH
+
+    SHIFT_CNT: int = 5
+
+    res_demod: Demodulation.Result
+    res_sync: Synchronization.Result
 
     def demodulete_process(
         x_split: NDArray[np.float64],
-    ) -> Tuple[Demodulation.Result, Synchronization.Result]:
+    ) -> bool:
+        nonlocal res_demod, res_sync
+        print(len(x_split))
         res_sync = sync.calculate(x_split)
         signal_index = res_sync.signal_index
+        # plot_multi_signal(res_sync=res_sync)
+        if len(signal_index) == 0:
+            return False
 
-        assert sync.is_detect_signal() == True, "no signal"
         print("signal index = ", signal_index)
+        # TODO: ここのassertは正常系でもデータがないときに引っかかることがあるので対策する
+        # assert sync.is_detect_signal() == True, "no signal"
         # 復調
         demod_t = np.arange(N) * dt
         demod_x = np.zeros(N, dtype=np.float64)
-        failed: int = 0
         for i in range(len(signal_index)):
-            for shift_cnt in range(-SHIFT, SHIFT):
+            for shift_cnt in range(-SHIFT_CNT, SHIFT_CNT):
                 print(f"shift_cnt = {shift_cnt}")
                 if (
                     signal_index[i] - shift_cnt < 0
@@ -664,23 +652,21 @@ def multi_signal(
                     if shift_cnt != 0:
                         sync.set_offset(shift_cnt)
                     break
-            if res_demod.is_success == False:
-                failed += 1
             print("ans", ans_data)
-            """
-            assert (
-                res_demod.is_success == True
-            ), f"original = {original_data}, answer = {ans_data}"
-            npt.assert_equal(original_data, ans_data)
-            """
-        sync.set_failed_count(failed)
-        return res_demod, res_sync
+            if res_demod.is_success:
+                npt.assert_equal(original_data, ans_data)
+        sync.set_failed_count(int(res_demod.is_success == False))
+        return res_demod.is_success
 
-    res_demod: Demodulation.Result
-    res_sync: Synchronization.Result
-    for i in range(len(x), N):
-        res_demod, res_sync = demodulete_process(x[i : i + N])
-
+    # Nずつシフトして、demodulete_processを実行
+    success_cnt: int = 0
+    for i in range(0, len(x) - sync.BUFFER_LENGTH, N):
+        print(f"cnt = {i // N}, {i}, {sync.BUFFER_LENGTH + i}")
+        is_success = demodulete_process(x[i : sync.BUFFER_LENGTH + i])
+        success_cnt += int(is_success)
+    print(f"success_cnt = {success_cnt}")
+    assert success_cnt == SYMBOL_NUMBER - SYMBOL_NUMBER // 10
+    print("ok")
     return res_mod, res_demod, res_sync
 
 
