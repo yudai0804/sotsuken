@@ -28,7 +28,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha
       - name: Run pytest
-        run: docker run -v .:/app ${{ steps.metadata.outputs.tags }} pytest ofdm-simulation/tests
+        run: docker run -v .:/app ${{ steps.metadata.outputs.tags }} poetry install && poetry run pytest
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -54,5 +54,34 @@ jobs:
           tags: ${{ steps.metadata.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha
-      - name: mypy
-        run: docker run -v .:/app ${{ steps.metadata.outputs.tags }} mypy --strict ofdm-simulation/
+      - name: Run mypy
+        run: docker run -v .:/app ${{ steps.metadata.outputs.tags }} poetry install && poetry run mypy
+  check-format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set metadata
+        id: metadata
+        uses: docker/metadata-action@v5
+        with:
+          images: docker-ofdm-simulation
+          tags: |
+            type=semver,pattern={{raw}} # tag を利用
+            type=sha,format=short       # sha を利用
+
+      - name: Build
+        uses: docker/build-push-action@v5
+        with:
+          push: false
+          load: true
+          context: .
+          tags: ${{ steps.metadata.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha
+      - name: Run isort
+        run: docker run -v .:/app ${{ steps.metadata.outputs.tags }} poetry install && poetry run isort --check .
+      - name: Run black
+        run: docker run -v .:/app ${{ steps.metadata.outputs.tags }} poetry install && poetry run black --check .
