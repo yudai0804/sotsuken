@@ -28,7 +28,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha
       - name: Run pytest
-        run: docker run -v .:/app ${{ steps.metadata.outputs.tags }} poetry install --no-root && poetry run pytest
+        run: docker run -v .:/app ${{ steps.metadata.outputs.tags }} bash -c "poetry install --no-root && poetry run pytest"
   lint:
     runs-on: ubuntu-latest
     steps:
