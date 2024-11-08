@@ -1,0 +1,36 @@
+[tool.poetry]
+name = "ofdm-simulation"
+version = "0.1.0"
+description = ""
+authors = ["yudai <yudai.yy0804@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+matplotlib = "^3.9.2"
+matplotlib-fontja = "^1.0.0"
+numpy = "^2.1.3"
+pydantic = "^2.9.2"
+scipy = "^1.14.1"
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.10.0"
+isort = "^5.13.2"
+pytest = "^8.3.3"
+mypy = "^1.13.0"
+
+[tool.isort]
+profile = "black" 
+
+[tool.mypy]
+files = "ofdm-simulation"
+ignore_missing_imports = true
+strict = true
+
+[tool.pytest.ini_options]
+pythonpath = "ofdm-simulation"
+testpaths = ["ofdm-simulation/tests"]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

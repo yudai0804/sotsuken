@@ -1,8 +1,9 @@
-import numpy as np
 import cmath
 import math
-from numpy.typing import NDArray
 from typing import Any, List, Tuple
+
+import numpy as np
+from numpy.typing import NDArray
 
 
 def dft(x: NDArray[np.complex128]) -> NDArray[np.complex128]:

@@ -1,10 +1,11 @@
-import pytest
+import random
+from typing import Any, List, Tuple
+
 import fft
 import numpy as np
 import numpy.testing as npt
+import pytest
 from numpy.typing import NDArray
-from typing import Any, List, Tuple
-import random
 
 
 def test_fft() -> None:

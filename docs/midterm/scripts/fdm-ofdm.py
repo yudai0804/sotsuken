@@ -1,6 +1,7 @@
+import signal
+
 import matplotlib.pyplot as plt
 import numpy as np
-import signal
 
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 

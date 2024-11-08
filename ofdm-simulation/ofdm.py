@@ -1,17 +1,16 @@
+import bisect
+import math
+import random
+from typing import Any, List, Tuple
+
+import matplotlib.pyplot as plt
+import matplotlib_fontja
 import numpy as np
 import numpy.testing as npt
+import scipy.interpolate
+import scipy.signal
 from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict
-from typing import Any, List, Tuple
-import scipy.signal
-import scipy.interpolate
-import matplotlib.pyplot as plt
-import bisect
-import random
-import math
-
-# japanize-matplotlibの代替(Python3.12以降はjapanize-matplotlibは動かないらしいので)
-import matplotlib_fontja
 
 # IFFT/FFTの回転因子の数
 N: int = 1024
