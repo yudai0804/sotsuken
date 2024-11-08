@@ -19,6 +19,9 @@ isort = "^5.13.2"
 pytest = "^8.3.3"
 mypy = "^1.13.0"
 
+[tool.isort]
+profile = "black" 
+
 [tool.mypy]
 files = "ofdm-simulation"
 ignore_missing_imports = true
