@@ -1,7 +1,6 @@
-FROM debian:latest
+FROM debian12
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y octave octave-signal python3 python3-pip
-
-COPY ./requirements.txt ./requirements.txt
-RUN pip install -r ./requirements.txt --break-system-packages
+# Install Poetry
+curl -sSL https://install.python-poetry.org | python3 -
