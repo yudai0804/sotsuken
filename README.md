@@ -1,3 +1,6 @@
+# sotsuken
+卒研用リポジトリです。  
+FPGAを用いたOFDM復調器の作成、及びPythonでのシミュレーションを行っています。  
 # ofdm-simulation
 ## Requirements
 Python version: 3.11
@@ -17,43 +20,50 @@ Using library for development
 
 Other
 
-octave(xcorr用)
-  - signal packageを使用
-  - test用
+octave(for xcorr)
+  - using signal package
+  - for pytest
 
 # Setup
+If you don't have Python 3.11, I recommend installing it using pyenv.
 
-venv環境作成
+Install poetry
 ```
-cd ofdm-simulation
-python3 -m venv .venv
+curl -sSL https://install.python-poetry.org | python3 -
 ```
-
-venvをactivate
+Install dependencies
 ```
-source .venv/bin/activate
-```
-
-pipでインストールされてるものを`requirements.txt`に書き出す
-```
-pip freeze > requirements.txt
+poetry install
 ```
 
-`requirements.txt`の内容をインストール
+# Run
+run
 ```
-pip install -r requirements.txt
+poetry run python3 path/to/python-file.py
+```
+pytest
+```
+poetry run pytest
+```
+mypy(lint)
+```
+poetry run mypy
+```
+isort(formatter)
+```
+poetry run isort .
+```
+black(formatter)
+```
+poetry run black .
 ```
 
 # Docker
-ビルド
+Build
 ```
 docker build -t sotsuken .
 ```
-実行(pytest)
+Run
 ```
-docker run -v .:/app sotsuken:latest pytest
-```
-実行(mypy)
-```
-docker run -v .:/app sotsuken:latest mypy --strict ofdm-simulation/
+docker run -v .:/app sotsuken:latest bash -c "poetry install --no-root && poetry run your-command"
 ```
