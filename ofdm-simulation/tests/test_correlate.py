@@ -1,12 +1,13 @@
-import pytest
+import random
+import subprocess
+from typing import Any, List, Tuple
+
 import correlate
 import numpy as np
 import numpy.testing as npt
+import pytest
 import scipy.signal
-import random
-import subprocess
 from numpy.typing import NDArray
-from typing import Any, List, Tuple
 
 ##### correlate #####
 

@@ -1,19 +1,19 @@
 # 一次のローパスフィルタのシミュレーション
 
+import bisect
+import cmath
+import math
+import random
+import signal
+import sys
+from typing import Any, List, Tuple
+
+import matplotlib.pyplot as plt
 import numpy as np
 import numpy.testing as npt
-from numpy.typing import NDArray
-from typing import Any, List, Tuple
-import scipy.signal
 import scipy.interpolate
-import matplotlib.pyplot as plt
-import cmath
-import bisect
-import math
-import sys
-import random
-
-import signal
+import scipy.signal
+from numpy.typing import NDArray
 
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 

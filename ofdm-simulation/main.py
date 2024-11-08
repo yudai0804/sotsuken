@@ -10,9 +10,10 @@ parser.add_argument("--plot", action="store_true")
 
 args = parser.parse_args()
 
+import signal
+
 # argparseの動作を優先するため遅延import
 from ofdm import *
-import signal
 
 # matplotlibが正常に終了するのに必要
 signal.signal(signal.SIGINT, signal.SIG_DFL)

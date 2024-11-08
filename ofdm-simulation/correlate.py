@@ -1,8 +1,9 @@
-import numpy as np
 import math
+from typing import Any, List, Tuple
+
+import numpy as np
 import scipy
 from numpy.typing import NDArray
-from typing import Any, List, Tuple
 
 
 def xcorr(

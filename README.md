@@ -1,16 +1,25 @@
-# requirements
-## ofdm-simulation
-Python3.11
-  - numpy
-  - scipy
+# ofdm-simulation
+## Requirements
+Python version: 3.11
+Using library
   - matplotlib
   - matplotlib-fontja
+  - numpy
   - pydantic
+  - scipy
+
+Using library for development
+
+  - black(for formatter)
+  - isort(fort import formatter)
   - pytest(fot test)
   - mypy(for type check)
 
+Other
+
 octave(xcorr用)
   - signal packageを使用
+  - test用
 
 # Setup
 

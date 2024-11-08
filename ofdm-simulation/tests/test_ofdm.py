@@ -1,11 +1,12 @@
-import pytest
-from ofdm import *
+import random
+from typing import Any, List, Tuple
+
 import numpy as np
 import numpy.testing as npt
+import pytest
 from numpy.typing import NDArray
-from typing import Any, List, Tuple
+from ofdm import *
 from pydantic import BaseModel, ConfigDict
-import random
 
 
 @pytest.mark.parametrize(
