@@ -55,7 +55,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha
       - name: Run mypy
-        run: docker run -v .:/app ${{ steps.metadata.outputs.tags }} poetry install --no-root && poetry run mypy
+        run: docker run -v .:/app ${{ steps.metadata.outputs.tags }} bash -c "poetry install --no-root && poetry run mypy"
   check-format:
     runs-on: ubuntu-latest
     steps:
@@ -82,6 +82,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha
       - name: Run isort
-        run: docker run -v .:/app ${{ steps.metadata.outputs.tags }} poetry install --no-root && poetry run isort --check .
+        run: docker run -v .:/app ${{ steps.metadata.outputs.tags }} bash -c "poetry install --no-root && poetry run isort --check ."
       - name: Run black
-        run: docker run -v .:/app ${{ steps.metadata.outputs.tags }} poetry install --no-root && poetry run black --check .
+        run: docker run -v .:/app ${{ steps.metadata.outputs.tags }} bash -c "poetry install --no-root && poetry run black --check ."
