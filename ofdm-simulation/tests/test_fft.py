@@ -34,6 +34,14 @@ def test_fft_and_ifft() -> None:
     npt.assert_almost_equal(expected, result)
 
 
+def test_fft_fpga() -> None:
+    N: int = 256
+    x: NDArray[np.complex128] = np.random.rand(N) + 1j * np.random.rand(N)
+    expected = np.fft.fft(x)
+    result = fft.fft_fpga(x)
+    npt.assert_almost_equal(expected, result)
+
+
 def test_dft_pow2() -> None:
     N: int = 256
     x: NDArray[np.complex128] = np.random.rand(N) + 1j * np.random.rand(N)
