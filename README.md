@@ -26,6 +26,23 @@ octave(for xcorr)
   - using signal package
   - for pytest
 
+# ofdm-fpga
+- FPGA: GW1NR-9(Tang Nano 9K)
+- IDE: Gowin 1.9.9.03 IDE Education
+- FPGA write: openFPGALoader
+- Simulator: Icarus Verilog
+
+## iverilog
+```
+iverilog -o testbench verilog/file/name.v -DSIMULATOR && vvp testbench && gtkwave testbench.vcd
+```
+
+## openFPGALoader
+```
+cd ofdm-fpga/src
+openFPGALoader -f ../impl/pnr/ofdm-fpga.fs
+```
+
 # Setup
 If you don't have Python 3.11, I recommend installing it using pyenv.
 

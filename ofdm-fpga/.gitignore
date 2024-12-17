@@ -1,0 +1,6 @@
+impl/gwsynthesis
+impl/pnr
+impl/temp
+
+# user project
+ofdm-fpga.gprj.user

@@ -8,3 +8,5 @@ memo
 memo.txt
 .pytest_cache
 .mypy_cache
+testbench
+testbench.vcd
