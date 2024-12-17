@@ -1,10 +1,12 @@
 # sotsuken
 卒研用リポジトリです。  
 FPGAを用いたOFDM復調器の作成、及びPythonでのシミュレーションを行っています。  
+
 # ofdm-simulation
 ## Requirements
 Python version: 3.11
-Using library
+
+Using Python library
   - matplotlib
   - matplotlib-fontja
   - numpy
@@ -13,10 +15,10 @@ Using library
 
 Using library for development
 
-  - black(for formatter)
-  - isort(fort import formatter)
-  - pytest(fot test)
-  - mypy(for type check)
+  - black(formatter)
+  - isort(formatter)
+  - pytest(test)
+  - mypy(type check)
 
 Other
 
