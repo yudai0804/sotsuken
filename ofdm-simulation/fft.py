@@ -117,17 +117,20 @@ def fft_fpga(_x: NDArray[np.complex128]) -> NDArray[np.complex128]:
 
     # fft
     step: int = 1
+    half_step: int = step
     index: int = N
     sin_table = np.sin(2 * np.pi / N * np.arange(N // 4 + 1))
+    N2 = N // 2
     N4 = N // 4
 
-    while step < N:
-        half_step: int = step
+    # step <= N / 4のときは2つのバタフライ演算器を用いて計算
+    while step < N2:
+        half_step = step
         step = step * 2
         index = index // 2
-        for k in range(0, N, step):
+        for k in range(0, N2, step):
             i: int = 0
-            for j in range(half_step):
+            for j in range(0, half_step):
                 # sin tableから回転因子を計算
                 w: complex
                 if 0 <= i <= N4:
@@ -144,13 +147,46 @@ def fft_fpga(_x: NDArray[np.complex128]) -> NDArray[np.complex128]:
                     w = sin_table[i - 3 * N4] + 1j * sin_table[4 * N4 - i]
 
                 # バタフライ演算
-                u: complex = x[k + j]
-                t: complex = w * x[k + j + half_step]
-                x[k + j] = u + t
-                x[k + j + half_step] = u - t
+                u0: complex = x[k + j]
+                t0: complex = w * x[k + j + half_step]
+                u1: complex = x[k + j + N2]
+                t1: complex = w * x[k + j + N2 + half_step]
+                x[k + j] = u0 + t0
+                x[k + j + half_step] = u0 - t0
+                x[k + j + N2] = u1 + t1
+                x[k + j + N2 + half_step] = u1 - t1
                 i += index
                 i %= N
 
+    # step == N / 2のときは1つのバタフライ演算器を用いて計算
+    half_step = step
+    step = step * 2
+    index = index // 2
+    for k in range(0, N, step):
+        i: int = 0
+        for j in range(half_step):
+            # sin tableから回転因子を計算
+            w: complex
+            if 0 <= i <= N4:
+                # 第4象限
+                w = sin_table[N4 - i] - 1j * sin_table[i]
+            elif N4 < i <= 2 * N4:
+                # 第3象限
+                w = -sin_table[i - N4] - 1j * sin_table[2 * N4 - i]
+            elif 2 * N4 < i <= 3 * N4:
+                # 第2象限
+                w = -sin_table[3 * N4 - i] + 1j * sin_table[i - 2 * N4]
+            elif 3 * N4 < i < N:
+                # 第1象限
+                w = sin_table[i - 3 * N4] + 1j * sin_table[4 * N4 - i]
+
+            # バタフライ演算
+            u: complex = x[k + j]
+            t: complex = w * x[k + j + half_step]
+            x[k + j] = u + t
+            x[k + j + half_step] = u - t
+            i += index
+            i %= N
     return x
 
 
