@@ -126,11 +126,10 @@ def fft_fpga(_x: NDArray[np.complex128]) -> NDArray[np.complex128]:
         step = step * 2
         index = index // 2
         for k in range(0, N, step):
-            w_index: int = 0
+            i: int = 0
             for j in range(half_step):
                 # sin tableから回転因子を計算
                 w: complex
-                i = w_index
                 if 0 <= i <= N4:
                     # 第4象限
                     w = sin_table[N4 - i] - 1j * sin_table[i]
@@ -149,8 +148,8 @@ def fft_fpga(_x: NDArray[np.complex128]) -> NDArray[np.complex128]:
                 t: complex = w * x[k + j + half_step]
                 x[k + j] = u + t
                 x[k + j + half_step] = u - t
-                w_index += index
-                w_index %= N
+                i += index
+                i %= N
 
     return x
 
