@@ -5,9 +5,9 @@
 //Part Number: GW1NR-LV9QN88PC6/I5
 //Device: GW1NR-9
 //Device Version: C
-//Created Time: Tue Dec 17 22:34:24 2024
+//Created Time: Wed Dec 18 11:52:37 2024
 
-module Gowin_SP2 (dout, clk, oce, ce, reset, wre, ad, din);
+module Gowin_SP_w (dout, clk, oce, ce, reset, wre, ad, din);
 
 output [15:0] dout;
 input clk;
@@ -43,4 +43,4 @@ defparam sp_inst_0.BIT_WIDTH = 16;
 defparam sp_inst_0.BLK_SEL = 3'b000;
 defparam sp_inst_0.RESET_MODE = "SYNC";
 
-endmodule //Gowin_SP2
+endmodule //Gowin_SP_w
