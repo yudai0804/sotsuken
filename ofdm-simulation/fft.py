@@ -144,7 +144,8 @@ def fft_fpga(_x: NDArray[np.complex128]) -> NDArray[np.complex128]:
                     w = -sin_table[3 * N4 - i] + 1j * sin_table[i - 2 * N4]
                 elif 3 * N4 < i < N:
                     # 第1象限
-                    w = sin_table[i - 3 * N4] + 1j * sin_table[4 * N4 - i]
+                    # 4 * N4をするとビット幅が増えるので、i & (N4 - 1)
+                    w = sin_table[i - 3 * N4] + 1j * sin_table[i & (N4 - 1)]
 
                 # バタフライ演算
                 u0: complex = x[k + j]
@@ -178,7 +179,8 @@ def fft_fpga(_x: NDArray[np.complex128]) -> NDArray[np.complex128]:
                 w = -sin_table[3 * N4 - i] + 1j * sin_table[i - 2 * N4]
             elif 3 * N4 < i < N:
                 # 第1象限
-                w = sin_table[i - 3 * N4] + 1j * sin_table[4 * N4 - i]
+                # 4 * N4をするとビット幅が増えるので、i & (N4 - 1)
+                w = sin_table[i - 3 * N4] + 1j * sin_table[i & (N4 - 1)]
 
             # バタフライ演算
             u: complex = x[k + j]
