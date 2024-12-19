@@ -32,14 +32,12 @@ for i in range(len(x)):
     # print(f"{res[i]:04x}, {x[i]:.6f}")
 
 s: str = ""
-index: int = -1
 for i in range(64):
     s += f"defparam prom_inst_0.INIT_RAM_{i:02x} = 256'h"
     for j in range(16):
-        index += 1
-        if index >= N4:
+        if 16 * i + 15 - j >= N4:
             s += f"0000"
         else:
-            s += f"{res[index]:04x}"
+            s += f"{res[16 * i + 15 - j]:04x}"
     s += ";\n"
 print(s)
