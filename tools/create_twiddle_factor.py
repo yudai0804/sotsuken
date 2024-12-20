@@ -34,7 +34,7 @@ for i in range(len(x)):
 s: str = ""
 index: int = -1
 for i in range(64):
-    s += f"defparam sp_inst_0.INIT_RAM_{i:02x} = 256'h"
+    s += f"defparam prom_inst_0.INIT_RAM_{i:02x} = 256'h"
     for j in range(16):
         index += 1
         if index >= N4:
