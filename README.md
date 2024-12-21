@@ -1,6 +1,6 @@
 # sotsuken
 卒研用リポジトリです。  
-FPGAを用いたOFDM復調器の作成、及びPythonでのシミュレーションを行っています。  
+FPGAを用いたOFDM復調器の作成、Pythonでのシミュレーションを行っています。  
 
 # ofdm-simulation
 ## Requirements
@@ -43,7 +43,7 @@ cd ofdm-fpga/src
 openFPGALoader -f ../impl/pnr/ofdm-fpga.fs
 ```
 
-# Setup
+# Setup Python
 If you don't have Python 3.11, I recommend installing it using pyenv.
 
 Install poetry
@@ -55,8 +55,14 @@ Install dependencies
 poetry install
 ```
 
-# Run
-run
+# Run Python
+Enable virtual environment(optional)
+```
+poetry shell
+```
+When the virtual environment is activated, you don't need to use `poetry run`.
+
+Run
 ```
 poetry run python3 path/to/python-file.py
 ```
