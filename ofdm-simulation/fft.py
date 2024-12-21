@@ -4,6 +4,7 @@ from typing import Any, List, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
+from util_binary import bit_reverse, check_is_pow2
 
 
 def dft(x: NDArray[np.complex128]) -> NDArray[np.complex128]:
@@ -13,22 +14,6 @@ def dft(x: NDArray[np.complex128]) -> NDArray[np.complex128]:
         for j in range(N):
             X[i] += x[j] * np.exp(-2j * np.pi * i * j / N)
     return X
-
-
-def check_is_pow2(x: int) -> bool:
-    i: int = 1
-    while i < x:
-        i *= 2
-    return i == x
-
-
-def log2_int(x: int) -> int:
-    assert check_is_pow2(x) == True
-    ans: int = 0
-    while x // 2 != 0:
-        x = x // 2
-        ans += 1
-    return ans
 
 
 def fft_recursion(x: NDArray[np.complex128]) -> NDArray[np.complex128]:
@@ -66,14 +51,7 @@ def fft(_x: NDArray[np.complex128]) -> NDArray[np.complex128]:
     assert check_is_pow2(N) == True
 
     # reverse
-    bit: int = log2_int(N)
-    for i in range(N):
-        k: int = 0
-        for j in range(bit):
-            k |= ((i & (0x01 << j)) >> j) << (bit - 1 - j)
-        if i < k:
-            # swap
-            x[i], x[k] = x[k], x[i]
+    x: NDArray[np.complex128] = bit_reverse(x)
 
     # fft
     step: int = 1
@@ -106,14 +84,10 @@ def fft_fpga(_x: NDArray[np.complex128]) -> NDArray[np.complex128]:
     assert check_is_pow2(N) == True
 
     # reverse
-    bit: int = log2_int(N)
-    for i in range(N):
-        k: int = 0
-        for j in range(bit):
-            k |= ((i & (0x01 << j)) >> j) << (bit - 1 - j)
-        if i < k:
-            # swap
-            x[i], x[k] = x[k], x[i]
+    # FPGAではbit_reverseは配列を逆順にするだけで実装できる。
+    # 例(4bitの場合)
+    # assign res = {x[0], x[1], x[2], x[3]};
+    x: NDArray[np.complex128] = bit_reverse(x)
 
     # fft
     step: int = 1
