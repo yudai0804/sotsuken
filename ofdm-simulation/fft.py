@@ -46,12 +46,11 @@ def fft(_x: NDArray[np.complex128]) -> NDArray[np.complex128]:
     非再帰FFT(時間間引き)
     """
     # 参照渡しになってしまうと扱いにくいのでコピー
-    x = _x.copy()
-    N = len(x)
+    N = len(_x)
     assert check_is_pow2(N) == True
 
     # reverse
-    x: NDArray[np.complex128] = bit_reverse(x)
+    x: NDArray[np.complex128] = bit_reverse(_x.copy())
 
     # fft
     step: int = 1
@@ -79,15 +78,14 @@ def fft_fpga(_x: NDArray[np.complex128]) -> NDArray[np.complex128]:
     回転因子は長さ N / 4 + 1のsinテーブルから計算可能
     """
     # 参照渡しになってしまうと扱いにくいのでコピー
-    x = _x.copy()
-    N = len(x)
+    N = len(_x)
     assert check_is_pow2(N) == True
 
     # reverse
     # FPGAではbit_reverseは配列を逆順にするだけで実装できる。
     # 例(4bitの場合)
     # assign res = {x[0], x[1], x[2], x[3]};
-    x: NDArray[np.complex128] = bit_reverse(x)
+    x: NDArray[np.complex128] = bit_reverse(_x.copy())
 
     # fft
     step: int = 1
@@ -96,6 +94,8 @@ def fft_fpga(_x: NDArray[np.complex128]) -> NDArray[np.complex128]:
     sin_table = np.sin(2 * np.pi / N * np.arange(N // 4 + 1))
     N2 = N // 2
     N4 = N // 4
+    i: int = 0
+    w: complex = 0
 
     # step <= N / 4のときは2つのバタフライ演算器を用いて計算
     while step < N2:
@@ -103,10 +103,9 @@ def fft_fpga(_x: NDArray[np.complex128]) -> NDArray[np.complex128]:
         step = step * 2
         index = index // 2
         for k in range(0, N2, step):
-            i: int = 0
+            i = 0
             for j in range(0, half_step):
                 # sin tableから回転因子を計算
-                w: complex
                 if 0 <= i <= N4:
                     # 第4象限
                     w = sin_table[N4 - i] - 1j * sin_table[i]
@@ -138,10 +137,9 @@ def fft_fpga(_x: NDArray[np.complex128]) -> NDArray[np.complex128]:
     step = step * 2
     index = index // 2
     for k in range(0, N, step):
-        i: int = 0
+        i = 0
         for j in range(half_step):
             # sin tableから回転因子を計算
-            w: complex
             if 0 <= i <= N4:
                 # 第4象限
                 w = sin_table[N4 - i] - 1j * sin_table[i]

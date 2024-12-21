@@ -61,4 +61,6 @@ def output_fft_sram(N, _re: NDArray[np.float64], _im: NDArray[np.float64]) -> No
 
 def output_fft1024() -> None:
     N: int = 1024
-    output_fft_sram(N, np.array([1 / N] * N, dtype=np.float64), [0] * N)
+    output_fft_sram(
+        N, np.array([1 / N] * N, dtype=np.float64), np.array([0] * N, dtype=np.float64)
+    )
