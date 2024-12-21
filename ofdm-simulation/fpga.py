@@ -29,7 +29,7 @@ def output_twinddle_factor() -> None:
     print(s)
 
 
-def output_fft_sram(N, _re: NDArray[np.float64], _im: NDArray[np.float64]) -> None:
+def output_fft_sram(N: int, _re: NDArray[np.float64], _im: NDArray[np.float64]) -> None:
     N2: int = N // 2
     N4: int = N // 4
     t = np.arange(N, dtype=np.int32)
