@@ -12,6 +12,7 @@ Using Python library
   - numpy
   - pydantic
   - scipy
+  - pyserial
 
 Using library for development
 
