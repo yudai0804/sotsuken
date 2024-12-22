@@ -18,6 +18,20 @@ def float_to_fixed_q15(x: float) -> int:
         return res
 
 
+def fixed_q15_to_float(x: int) -> float:
+    res: float = 0
+    sign: int = 0
+    if x & 0x8000:
+        sign = 1
+        x = (~x + 1) & 0xFFFF
+    for i in range(16):
+        if x & (1 << 15 - i):
+            res += 2**-i
+    if sign:
+        res *= -1
+    return res
+
+
 def check_is_pow2(x: int) -> bool:
     i: int = 1
     while i < x:
