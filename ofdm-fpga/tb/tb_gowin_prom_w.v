@@ -1,3 +1,4 @@
+// iverilog -o testbench tb/tb_gowin_prom_w.v src/gowin/gowin_prom_w.v src/gowin/prim_sim.v && vvp testbench && gtkwave testbench.vcd
 // prom_wは少し変なことをやっているので、ちゃんと動くかの確認用
 
 `timescale 1ns / 1ps
