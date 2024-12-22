@@ -19,12 +19,12 @@ def output_twinddle_factor() -> None:
 
     s: str = ""
     for i in range(64):
-        s += f"defparam prom_inst_0.INIT_RAM_{i:02x} = 256'h"
+        s += f"defparam prom_inst_0.INIT_RAM_{i:02X} = 256'h"
         for j in range(16):
             if 16 * i + 15 - j >= N4:
                 s += f"0000"
             else:
-                s += f"{res[16 * i + 15 - j]:04x}"
+                s += f"{res[16 * i + 15 - j]:04X}"
         s += ";\n"
     print(s)
 
@@ -41,20 +41,20 @@ def output_fft_sram(N: int, _re: NDArray[np.float64], _im: NDArray[np.float64]) 
     for cnt in range(4):
         s: str = ""
         for i in range(64):
-            s += f"defparam sp_inst_{cnt:1d}.INIT_RAM_{(i):02x} = 256'h"
+            s += f"defparam sp_inst_{cnt:1d}.INIT_RAM_{(i):02X} = 256'h"
             for j in range(32):
                 index = 32 * i + 31 - j
                 if index >= N:
                     s += f"00"
                 else:
                     if cnt == 0:
-                        s += f"{float_to_fixed_q15(im[index]) & 0xff:02x}"
+                        s += f"{float_to_fixed_q15(im[index]) & 0xff:02X}"
                     elif cnt == 1:
-                        s += f"{float_to_fixed_q15(im[index]) >> 8:02x}"
+                        s += f"{float_to_fixed_q15(im[index]) >> 8:02X}"
                     elif cnt == 2:
-                        s += f"{float_to_fixed_q15(re[index]) & 0xff:02x}"
+                        s += f"{float_to_fixed_q15(re[index]) & 0xff:02X}"
                     else:
-                        s += f"{float_to_fixed_q15(re[index]) >> 8:02x}"
+                        s += f"{float_to_fixed_q15(re[index]) >> 8:02X}"
             s += ";\n"
         print(s)
 
