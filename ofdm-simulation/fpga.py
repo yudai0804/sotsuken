@@ -1,6 +1,6 @@
 import numpy as np
 from numpy.typing import NDArray
-from util_binary import bit_reverse, float_to_fixed_q15
+from util_binary import bit_reverse, fixed_q15_to_float, float_to_fixed_q15
 
 
 def output_twinddle_factor() -> None:
@@ -32,8 +32,6 @@ def output_twinddle_factor() -> None:
 def output_fft_sram(N: int, _re: NDArray[np.float64], _im: NDArray[np.float64]) -> None:
     N2: int = N // 2
     N4: int = N // 4
-    t = np.arange(N, dtype=np.int32)
-    t = np.fft.fftshift(t)
     # reverse
     re = bit_reverse(_re)
     im = bit_reverse(_im)
@@ -68,5 +66,41 @@ def output_fft_sram(N: int, _re: NDArray[np.float64], _im: NDArray[np.float64]) 
 def output_fft1024() -> None:
     N: int = 1024
     output_fft_sram(
-        N, np.array([1 / N] * N, dtype=np.float64), np.array([0] * N, dtype=np.float64)
+        N,
+        np.array([-1 / (2 * N)] * N, dtype=np.float64),
+        np.array([0] * N, dtype=np.float64),
     )
+    # re = np.zeros(N, dtype=np.float64)
+    # im = np.zeros(N, dtype=np.float64)
+    # re[0] = -0.5
+    # re = np.zeros(N, dtype=np.float64)
+    # im = np.zeros(N, dtype=np.float64)
+    # re[0] = 1 / 3
+    # im[0] = -0.5
+    # output_fft_sram(N, re, im)
+
+
+def read_fft(N: int) -> None:
+    Xq_re = np.zeros(N, dtype=np.int32)
+    Xq_im = np.zeros(N, dtype=np.int32)
+    X = np.zeros(N, dtype=np.complex128)
+    # 最初はゴミなので無視
+    # ゴミの内容
+    # VCD info: dumpfile testbench.vcd opened for output.
+    _ = input()
+    for i in range(N):
+        x_str = input().replace(" ", "")
+        assert x_str.isdigit() == True
+        x_int = int(x_str)
+        Xq_re[i] = x_int >> 16
+        Xq_im[i] = x_int & 0xFFFF
+
+    for i in range(N):
+        X[i] = fixed_q15_to_float(Xq_re[i]) + 1j * fixed_q15_to_float(Xq_im[i])
+
+    for i in range(N):
+        print(X[i])
+
+
+def read_fft1024() -> None:
+    read_fft(1024)

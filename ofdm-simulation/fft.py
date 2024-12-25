@@ -97,7 +97,7 @@ def fft_fpga(_x: NDArray[np.complex128]) -> NDArray[np.complex128]:
     i: int = 0
     w: complex = 0
 
-    # step <= N / 4のときは2つのバタフライ演算器を用いて計算
+    # step <= N / 2のときは2つのバタフライ演算器を用いて計算
     while step < N2:
         half_step = step
         step = step * 2
@@ -132,35 +132,35 @@ def fft_fpga(_x: NDArray[np.complex128]) -> NDArray[np.complex128]:
                 i += index
                 i %= N
 
-    # step == N / 2のときは1つのバタフライ演算器を用いて計算
-    half_step = step
-    step = step * 2
-    index = index // 2
-    for k in range(0, N, step):
-        i = 0
-        for j in range(half_step):
-            # sin tableから回転因子を計算
-            if 0 <= i <= N4:
-                # 第4象限
-                w = sin_table[N4 - i] - 1j * sin_table[i]
-            elif N4 < i <= 2 * N4:
-                # 第3象限
-                w = -sin_table[i - N4] - 1j * sin_table[2 * N4 - i]
-            elif 2 * N4 < i <= 3 * N4:
-                # 第2象限
-                w = -sin_table[3 * N4 - i] + 1j * sin_table[i - 2 * N4]
-            elif 3 * N4 < i < N:
-                # 第1象限
-                # 4 * N4をするとビット幅が増えるので、i & (N4 - 1)
-                w = sin_table[i - 3 * N4] + 1j * sin_table[i & (N4 - 1)]
+    # step == Nのときは1つのバタフライ演算器を用いて計算
+    half_step = N2
+    step = N
+    index = 1
+    i = 0
+    for j in range(half_step):
+        # sin tableから回転因子を計算
+        if 0 <= i <= N4:
+            # 第4象限
+            w = sin_table[N4 - i] - 1j * sin_table[i]
+        elif N4 < i <= 2 * N4:
+            # 第3象限
+            w = -sin_table[i - N4] - 1j * sin_table[2 * N4 - i]
+        elif 2 * N4 < i <= 3 * N4:
+            # 第2象限
+            w = -sin_table[3 * N4 - i] + 1j * sin_table[i - 2 * N4]
+        elif 3 * N4 < i < N:
+            # 第1象限
+            # 4 * N4をするとビット幅が増えるので、i & (N4 - 1)
+            w = sin_table[i - 3 * N4] + 1j * sin_table[i & (N4 - 1)]
 
-            # バタフライ演算
-            u: complex = x[k + j]
-            t: complex = w * x[k + j + half_step]
-            x[k + j] = u + t
-            x[k + j + half_step] = u - t
-            i += index
-            i %= N
+        # バタフライ演算
+        u: complex = x[j]
+        t: complex = w * x[j + half_step]
+        x[j] = u + t
+        x[j + half_step] = u - t
+        i += index
+        i %= N
+
     return x
 
 

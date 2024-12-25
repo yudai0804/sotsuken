@@ -21,7 +21,9 @@ sim_parser.add_argument(
 )
 
 fpga_parser = subparsers.add_parser("fpga", formatter_class=RawFormatter)
-fpga_parser.add_argument("fpga_mode", choices=["twinddle-factor", "fft1024"])
+fpga_parser.add_argument(
+    "fpga_mode", choices=["twinddle-factor", "output-fft1024", "read-fft1024"]
+)
 
 args = parser.parse_args()
 
@@ -54,5 +56,7 @@ elif args.command == "fpga":
 
     if args.fpga_mode == "twinddle-factor":
         output_twinddle_factor()
-    elif args.fpga_mode == "fft1024":
+    elif args.fpga_mode == "output-fft1024":
         output_fft1024()
+    elif args.fpga_mode == "read-fft1024":
+        read_fft1024()
