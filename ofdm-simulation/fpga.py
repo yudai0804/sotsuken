@@ -1,3 +1,5 @@
+from typing import Any, List, Tuple
+
 import numpy as np
 from numpy.typing import NDArray
 from util_binary import bit_reverse, fixed_q15_to_float, float_to_fixed_q15
@@ -15,7 +17,6 @@ def output_twinddle_factor() -> None:
     res = np.zeros(len(t), dtype=np.int32)
     for i in range(len(x)):
         res[i] = float_to_fixed_q15(x[i])
-        # print(f"{res[i]:04x}, {x[i]:.6f}")
 
     s: str = ""
     for i in range(64):
@@ -29,58 +30,50 @@ def output_twinddle_factor() -> None:
     print(s)
 
 
-def output_fft_sram(N: int, _re: NDArray[np.float64], _im: NDArray[np.float64]) -> None:
+def output_fft_sram(N: int, _x: NDArray[np.complex128]) -> Tuple[str, str]:
     N2: int = N // 2
     N4: int = N // 4
     # reverse
-    re = bit_reverse(_re)
-    im = bit_reverse(_im)
+    re = bit_reverse(_x.real)
+    im = bit_reverse(_x.imag)
     # output
-    s: str = ""
-    for fft_cnt in range(2):
-        s += f"// fft{fft_cnt}\n"
+    s = [""] * 2
+    for cnt in range(2):
+        s[cnt] += f"// fft{cnt}\n"
         for sp_cnt in range(4):
             for i in range(64):
-                s += f"defparam sp_inst_{sp_cnt:1d}.INIT_RAM_{(i):02X} = 256'h"
+                s[cnt] += f"defparam sp_inst_{sp_cnt:1d}.INIT_RAM_{(i):02X} = 256'h"
                 for j in range(32):
                     index = 32 * i + 31 - j
-                    if fft_cnt == 1:
+                    if cnt == 1:
                         index += N2
-                    if fft_cnt == 0 and index >= N2:
-                        s += f"00"
-                    elif fft_cnt == 1 and index >= N:
-                        s += f"00"
+                    if cnt == 0 and index >= N2:
+                        s[cnt] += f"00"
+                    elif cnt == 1 and index >= N:
+                        s[cnt] += f"00"
                     else:
                         if sp_cnt == 0:
-                            s += f"{float_to_fixed_q15(im[index]) & 0xff:02X}"
+                            s[cnt] += f"{float_to_fixed_q15(im[index]) & 0xff:02X}"
                         elif sp_cnt == 1:
-                            s += f"{float_to_fixed_q15(im[index]) >> 8:02X}"
+                            s[cnt] += f"{float_to_fixed_q15(im[index]) >> 8:02X}"
                         elif sp_cnt == 2:
-                            s += f"{float_to_fixed_q15(re[index]) & 0xff:02X}"
+                            s[cnt] += f"{float_to_fixed_q15(re[index]) & 0xff:02X}"
                         else:
-                            s += f"{float_to_fixed_q15(re[index]) >> 8:02X}"
-                s += ";\n"
-    print(s)
+                            s[cnt] += f"{float_to_fixed_q15(re[index]) >> 8:02X}"
+                s[cnt] += ";\n"
+    return s[0], s[1]
 
 
 def output_fft1024() -> None:
     N: int = 1024
-    output_fft_sram(
-        N,
-        np.array([-1 / (2 * N)] * N, dtype=np.float64),
-        np.array([0] * N, dtype=np.float64),
-    )
-    # re = np.zeros(N, dtype=np.float64)
-    # im = np.zeros(N, dtype=np.float64)
-    # re[0] = -0.5
-    # re = np.zeros(N, dtype=np.float64)
-    # im = np.zeros(N, dtype=np.float64)
-    # re[0] = 1 / 3
-    # im[0] = -0.5
-    # output_fft_sram(N, re, im)
+    x = np.zeros(N, dtype=np.complex128)
+    x[0] = 0.5
+    s0, s1 = output_fft_sram(N, x)
+    print(s0)
+    print(s1)
 
 
-def read_fft(N: int) -> None:
+def read_fft(N: int) -> NDArray[np.complex128]:
     Xq_re = np.zeros(N, dtype=np.int32)
     Xq_im = np.zeros(N, dtype=np.int32)
     X = np.zeros(N, dtype=np.complex128)
@@ -98,9 +91,10 @@ def read_fft(N: int) -> None:
     for i in range(N):
         X[i] = fixed_q15_to_float(Xq_re[i]) + 1j * fixed_q15_to_float(Xq_im[i])
 
-    for i in range(N):
-        print(X[i])
+    return X
 
 
 def read_fft1024() -> None:
-    read_fft(1024)
+    X = read_fft(1024)
+    for i in range(len(X)):
+        print(X[i])
