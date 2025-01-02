@@ -12,10 +12,9 @@ from util_binary import bit_reverse, fixed_q15_to_float, float_to_fixed_q15
 
 
 def run_verilog_fft(N: int, _x: NDArray[np.complex128]) -> NDArray[np.complex128]:
-    # bit reverse
-    x: NDArray[np.complex128] = bit_reverse(_x.copy())
     # 出力する文字列を作成
-    s0, s1 = output_fft_sram(N, x)
+    # ビット反転はoutput_fft_sramの中で行う
+    s0, s1 = output_fft_sram(N, _x.copy())
     # ofdm-fpgaディレクトリに移動
     start_dir = os.getcwd()
     # 一度test_fpga.pyがあるディレクトリまで移動
