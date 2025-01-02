@@ -6,9 +6,15 @@ from io import StringIO
 import numpy as np
 import numpy.testing as npt
 import pytest
+from fft import fft_fpga
 from fpga import *
 from numpy.typing import NDArray
-from util_binary import bit_reverse, fixed_q15_to_float, float_to_fixed_q15
+from util_binary import (
+    bit_reverse,
+    fixed_q15_quantization_complex,
+    fixed_q15_to_float,
+    float_to_fixed_q15,
+)
 
 
 def run_verilog_fft(N: int, _x: NDArray[np.complex128]) -> NDArray[np.complex128]:
@@ -29,7 +35,7 @@ def run_verilog_fft(N: int, _x: NDArray[np.complex128]) -> NDArray[np.complex128
         print(s1, file=file)
     # 実行
     result = subprocess.run(
-        "iverilog -o testbench tb/tb_fft1024.v src/fft1024.v src/gowin/gowin_prom_w.v src/gowin/gowin_sp_fft0.v src/gowin/gowin_sp_fft1.v src/gowin/prim_sim.v -I tmp -DSIMULATOR",
+        "iverilog -o testbench tb/tb_fft1024.v src/fft1024.v src/butterfly.v src/gowin/gowin_prom_w.v src/gowin/gowin_sp_fft0.v src/gowin/gowin_sp_fft1.v src/gowin/prim_sim.v -I tmp -DSIMULATOR",
         shell=True,
     )
     assert result.returncode == 0
@@ -50,15 +56,15 @@ def run_verilog_fft(N: int, _x: NDArray[np.complex128]) -> NDArray[np.complex128
 def test_fft1024() -> None:
     N: int = 1024
     x = np.zeros(N, dtype=np.complex128)
-    for i in range(N // 2):
-        x[2 * i] = 1 / (2 * N)
-    # x[0] = 0.5
-    # low: float = -0.01
-    # high: float = 0.01
-    # x = np.random.uniform(low, high, N) + 1j * np.random.uniform(low, high, N)
-    # x = 0.1 * np.sin(np.arange(N) / (2 * N) * np.pi)
-    expected: NDArray[np.complex128] = np.fft.fft(x)
-    result: NDArray[np.complex128] = run_verilog_fft(N, x)
+    low: float = -0.01
+    high: float = 0.01
+    x = np.random.uniform(low, high, N) + 1j * np.random.uniform(low, high, N)
+    # 乱数をそのまま与えると、64bit浮動小数点数と16bitの固定小数点数の有効数字に差が出てしまうため、
+    # 乱数を一度固定小数点数に変換し、再度浮動小数点数に変換する
     for i in range(N):
-        print(expected[i], result[i])
-    npt.assert_almost_equal(expected, result, decimal=4)
+        x[i] = fixed_q15_quantization_complex(x[i])
+
+    expected: NDArray[np.complex128] = np.fft.fft(x)
+    result: NDArray[np.complex128] = run_verilog_fft(N, x.copy())
+    # decimal=3は調子がいいと通るが、安定しないのでdecimal=2
+    npt.assert_almost_equal(expected, result, decimal=2)

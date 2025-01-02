@@ -22,7 +22,8 @@ sim_parser.add_argument(
 
 fpga_parser = subparsers.add_parser("fpga", formatter_class=RawFormatter)
 fpga_parser.add_argument(
-    "fpga_mode", choices=["twinddle-factor", "output-fft1024", "read-fft1024"]
+    "fpga_mode",
+    choices=["butterfly-table", "twinddle-factor", "output-fft1024", "read-fft1024"],
 )
 
 args = parser.parse_args()
@@ -54,7 +55,9 @@ if args.command == "sim":
 elif args.command == "fpga":
     from fpga import *
 
-    if args.fpga_mode == "twinddle-factor":
+    if args.fpga_mode == "butterfly-table":
+        output_butterfly_table()
+    elif args.fpga_mode == "twinddle-factor":
         output_twinddle_factor()
     elif args.fpga_mode == "output-fft1024":
         output_fft1024()

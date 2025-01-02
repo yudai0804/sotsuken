@@ -5,6 +5,64 @@ from numpy.typing import NDArray
 from util_binary import bit_reverse, fixed_q15_to_float, float_to_fixed_q15
 
 
+def output_butterfly_table() -> None:
+    s = (
+        "// x0 = x0 + x1 * w = (x0re + j * x0im) + ((x1re * wre - x1im * wim) + j(x1im * wre + x1re * wim)))\n"
+        "// x1 = x0 - x1 * w = (x0re + j * x0im) - ((x1re * wre - x1im * wim) - j(x1im * wre + x1re * wim)))\n"
+        "// x0re = x0re + x1re * wre - x1im * wim = x0re + A | x1re * wre | - B | x1im * wim | = x0re + A0 | x1re * wre | + B0 | x1im * wim |\n"
+        "// x0im = x0im + x1im * wre + x1re * wim = x0im + C | x1im * wre | + D | x1re * wim | = x0im + C0 | x1im * wre | + D0 | x1re * wim |\n"
+        "// x1re = x0re - x1re * wre + x1im * wim = x0re - A | x1re * wre | + B | x1im * wim | = x0re + A1 | x1re * wre | + B1 | x1im * wim |\n"
+        "// x1im = x0im - x1im * wre - x1re * wim = x0im - C | x1im * wre | - D | x1re * wim | = x0im + C1 | x1im * wre | + D1 | x1re * wim |\n"
+        "// A~Dは掛け算をしたときの符号(xorで求めることができる)\n"
+        "// 符号は1のときはマイナス、0のときはプラス"
+        "// A = sign(x1re * wre) = x1re ^ wre\n"
+        "// B = sign(x1im * wim) = x1im ^ wim\n"
+        "// C = sign(x1im * wre) = x1im ^ wre\n"
+        "// D = sign(x1re * wim) = x1re ^ wim\n"
+        "// A0~D0、A1~D1はA~Dとバタフライ演算のときに出てくる符号をかけ合わせたもの\n"
+        "// A0 = A\n"
+        "// B0 = ~B\n"
+        "// C0 = C\n"
+        "// D0 = D\n"
+        "// A1 = ~A\n"
+        "// B1 = B\n"
+        "// C1 = ~C\n"
+        "// D1 = ~D\n"
+        "// |=======input=======|                                   |=========output========|\n"
+        "// |x1re| wre|x1im| wim|x1re*wre|x1im*wim|x1im*wre|x1re*wim| x0re| x0im| x1re| x1im|\n"
+        "// |    |    |    |    |    A   |    B   |    C   |    D   |A0|B0|C0|D0|A1|B1|C1|D1|\n"
+        "// |-------------------------------------------------------------------------------|\n"
+    )
+    for i in range(16):
+        x1re = 0
+        wre = 0
+        x1im = 0
+        wim = 0
+        if i & 0x08:
+            x1re = 1
+        if i & 0x04:
+            wre = 1
+        if i & 0x02:
+            x1im = 1
+        if i & 0x01:
+            wim = 1
+        A = x1re ^ wre
+        B = x1im ^ wim
+        C = x1im ^ wre
+        D = x1re ^ wim
+        A0 = A
+        B0 = ~B & 0x01
+        C0 = C
+        D0 = D
+        A1 = ~A & 0x01
+        B1 = B
+        C1 = ~C & 0x01
+        D1 = ~D & 0x01
+        s += f"// |  {x1re} |  {wre} |  {x1im} |  {wim} |    {A}   |    {B}   |    {C}   |    {D}   | {A0}| {B0}| {C0}| {D0}| {A1}| {B1}| {C1}| {D1}|\n"
+        s += "// |-------------------------------------------------------------------------------|\n"
+    print(s)
+
+
 def output_twinddle_factor() -> None:
     # フォーマットはQ1.15に対応(符号1bit、小数部15ビット)
     N: int = 4096
@@ -31,6 +89,9 @@ def output_twinddle_factor() -> None:
 
 
 def output_fft_sram(N: int, _x: NDArray[np.complex128]) -> Tuple[str, str]:
+    """
+    この関数の中でビット反転を行うので、事前に行う必要は不要
+    """
     N2: int = N // 2
     N4: int = N // 4
     # reverse

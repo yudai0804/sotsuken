@@ -32,6 +32,14 @@ def fixed_q15_to_float(x: int) -> float:
     return res
 
 
+def fixed_q15_quantization(x: float) -> float:
+    return fixed_q15_to_float(float_to_fixed_q15(x))
+
+
+def fixed_q15_quantization_complex(x: complex) -> complex:
+    return fixed_q15_quantization(x.real) + 1j * fixed_q15_quantization(x.imag)
+
+
 def check_is_pow2(x: int) -> bool:
     i: int = 1
     while i < x:

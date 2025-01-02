@@ -4,7 +4,14 @@ from typing import Any, List, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
-from util_binary import bit_reverse, check_is_pow2
+from util_binary import (
+    bit_reverse,
+    check_is_pow2,
+    fixed_q15_quantization,
+    fixed_q15_quantization_complex,
+    fixed_q15_to_float,
+    float_to_fixed_q15,
+)
 
 
 def dft(x: NDArray[np.complex128]) -> NDArray[np.complex128]:
