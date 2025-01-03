@@ -1,7 +1,8 @@
+# 他のmoduleのimportはargparseの応答速度を上げるため、後からimportする
 import argparse
 
 
-# 他のmoduleのimportはargparseの応答速度を上げるため、後からimportする
+# おまじない
 class RawFormatter(argparse.RawTextHelpFormatter):
     pass
 
