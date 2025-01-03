@@ -2,6 +2,7 @@ import os
 import subprocess
 import sys
 from io import StringIO
+from typing import Any
 
 import numpy as np
 import numpy.testing as npt
@@ -34,7 +35,8 @@ def run_verilog_fft(N: int, _x: NDArray[np.complex128]) -> NDArray[np.complex128
     with open("tmp/gowin_sp_fft1_defparam.v", "w") as file:
         print(s1, file=file)
     # 実行
-    result = subprocess.run(
+    # 本当は良くないけど、mypyがうまく動かないので、Any型でごまかす
+    result: Any = subprocess.run(
         "iverilog -o testbench tb/tb_fft1024.v src/fft1024.v src/butterfly.v src/gowin/gowin_prom_w.v src/gowin/gowin_sp_fft0.v src/gowin/gowin_sp_fft1.v src/gowin/prim_sim.v -I tmp -DSIMULATOR",
         shell=True,
     )
