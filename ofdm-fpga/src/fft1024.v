@@ -1,5 +1,4 @@
 // 固定小数点のフォーマットはq1.15
-// TODO: 回転因子のインデックスは別ファイルに分ける
 // TODO: アルゴリズムを一度ドキュメントにまとめる
 module fft1024
 (
@@ -69,6 +68,9 @@ reg [2:0] clk_cnt;
 wire [63:0] butterfly0_res;
 wire [63:0] butterfly1_res;
 wire [31:0] butterfly_dout0;
+
+wire [23:0] fft_twindle_factor_index_res;
+
 assign butterfly_dout0 = (state == S_BUTTERFLY1) ? dout1 : dout0;
 
 butterfly butterfly0
@@ -106,6 +108,15 @@ butterfly butterfly1
     butterfly1_res[15:0]
 );
 
+fft_twindle_factor_index#
+(
+    1024
+)fft_twindle_factor_index_instance(
+    i,
+    1'd1,
+    fft_twindle_factor_index_res
+);
+
 // debug
 `ifdef SIMULATOR
 reg [15:0] debug_read_x0_re;
@@ -127,49 +138,6 @@ reg [15:0] debug_res_x3_im;
 reg [15:0] debug_w_re;
 reg [15:0] debug_w_im;
 `endif
-
-function [23:0] calc_w;
-    // calc_w = {w_re_sign, i_re, w_im_sign, i_im};
-    // fft1024ではN=4096の回転因子を使用するため4倍する
-    input [9:0] i;
-    reg [10:0] ad_re;
-    reg [10:0] ad_im;
-    reg sign_re;
-    reg sign_im;
-
-    if (0 <= i && i <= N4) begin
-        // 第4象限
-        ad_re = (N4 - i) << 2;
-        ad_im = i << 2;
-        sign_re = 1'd0;
-        sign_im = 1'd1;
-        calc_w = {sign_re, ad_re, sign_im, ad_im};
-    end
-    else if(N4 < i && i <= N4_2) begin
-        // 第3象限
-        ad_re = (i - N4) << 2;
-        ad_im = (N4_2 - i) << 2;
-        sign_re = 1'd1;
-        sign_im = 1'd1;
-        calc_w = {sign_re, ad_re, sign_im, ad_im};
-    end
-    else if(N4_2 < i && i <= N4_3) begin
-        // 第2象限
-        ad_re = (N4_3 - i) << 2;
-        ad_im = (i - N4_2) << 2;
-        sign_re = 1'd1;
-        sign_im = 1'd0;
-        calc_w = {sign_re, ad_re, sign_im, ad_im};
-    end
-    else begin
-        // 第1象限
-        ad_re = (i - N4_3) << 2;
-        ad_im = (i & (N4 - i)) << 2;
-        sign_re = 1'd0;
-        sign_im = 1'd0;
-        calc_w = {sign_re, ad_re, sign_im, ad_im};
-    end
-endfunction
 
 always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
@@ -263,7 +231,7 @@ always @(posedge clk or negedge rst_n) begin
                         // x2
                         ad1 <= {1'd0, k + j};
                         // 回転因子のインデックスと符号を計算
-                        {w_re_sign, ad_w, w_im_sign, prom_i_im} <= calc_w(i);
+                        {w_re_sign, ad_w, w_im_sign, prom_i_im} <= fft_twindle_factor_index_res;
                         clk_cnt <= 3'd1;
                     end
                     3'd1: begin
@@ -375,7 +343,7 @@ always @(posedge clk or negedge rst_n) begin
                         // x0
                         ad0 <= {1'd0, j};
                         // 回転因子のインデックスと符号を計算
-                        {w_re_sign, ad_w, w_im_sign, prom_i_im} <= calc_w(i);
+                        {w_re_sign, ad_w, w_im_sign, prom_i_im} <= fft_twindle_factor_index_res;
                         clk_cnt <= 3'd1;
                     end
                     3'd1: begin

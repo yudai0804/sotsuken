@@ -37,7 +37,7 @@ def run_verilog_fft(N: int, _x: NDArray[np.complex128]) -> NDArray[np.complex128
     # 実行
     # 本当は良くないけど、mypyがうまく動かないので、Any型でごまかす
     result: Any = subprocess.run(
-        "iverilog -o testbench tb/tb_fft1024.v src/fft1024.v src/butterfly.v src/gowin/gowin_prom_w.v src/gowin/gowin_sp_fft0.v src/gowin/gowin_sp_fft1.v src/gowin/prim_sim.v -I tmp -DSIMULATOR",
+        "iverilog -o testbench tb/tb_fft1024.v src/fft1024.v src/butterfly.v src/fft_twindle_factor_index.v src/gowin/gowin_prom_w.v src/gowin/gowin_sp_fft0.v src/gowin/gowin_sp_fft1.v src/gowin/prim_sim.v -I tmp -DSIMULATOR",
         shell=True,
     )
     assert result.returncode == 0
