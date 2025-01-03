@@ -4,3 +4,6 @@ impl/temp
 
 # user project
 ofdm-fpga.gprj.user
+
+# fftの動作確認用(pytest)
+tmp

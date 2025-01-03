@@ -4,6 +4,14 @@ from typing import Any, List, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
+from util_binary import (
+    bit_reverse,
+    check_is_pow2,
+    fixed_q15_quantization,
+    fixed_q15_quantization_complex,
+    fixed_q15_to_float,
+    float_to_fixed_q15,
+)
 
 
 def dft(x: NDArray[np.complex128]) -> NDArray[np.complex128]:
@@ -13,22 +21,6 @@ def dft(x: NDArray[np.complex128]) -> NDArray[np.complex128]:
         for j in range(N):
             X[i] += x[j] * np.exp(-2j * np.pi * i * j / N)
     return X
-
-
-def check_is_pow2(x: int) -> bool:
-    i: int = 1
-    while i < x:
-        i *= 2
-    return i == x
-
-
-def log2_int(x: int) -> int:
-    assert check_is_pow2(x) == True
-    ans: int = 0
-    while x // 2 != 0:
-        x = x // 2
-        ans += 1
-    return ans
 
 
 def fft_recursion(x: NDArray[np.complex128]) -> NDArray[np.complex128]:
@@ -61,19 +53,11 @@ def fft(_x: NDArray[np.complex128]) -> NDArray[np.complex128]:
     非再帰FFT(時間間引き)
     """
     # 参照渡しになってしまうと扱いにくいのでコピー
-    x = _x.copy()
-    N = len(x)
+    N = len(_x)
     assert check_is_pow2(N) == True
 
     # reverse
-    bit: int = log2_int(N)
-    for i in range(N):
-        k: int = 0
-        for j in range(bit):
-            k |= ((i & (0x01 << j)) >> j) << (bit - 1 - j)
-        if i < k:
-            # swap
-            x[i], x[k] = x[k], x[i]
+    x: NDArray[np.complex128] = bit_reverse(_x.copy())
 
     # fft
     step: int = 1
@@ -101,36 +85,34 @@ def fft_fpga(_x: NDArray[np.complex128]) -> NDArray[np.complex128]:
     回転因子は長さ N / 4 + 1のsinテーブルから計算可能
     """
     # 参照渡しになってしまうと扱いにくいのでコピー
-    x = _x.copy()
-    N = len(x)
+    N = len(_x)
     assert check_is_pow2(N) == True
 
     # reverse
-    bit: int = log2_int(N)
-    for i in range(N):
-        k: int = 0
-        for j in range(bit):
-            k |= ((i & (0x01 << j)) >> j) << (bit - 1 - j)
-        if i < k:
-            # swap
-            x[i], x[k] = x[k], x[i]
+    # FPGAではbit_reverseは配列を逆順にするだけで実装できる。
+    # 例(4bitの場合)
+    # assign res = {x[0], x[1], x[2], x[3]};
+    x: NDArray[np.complex128] = bit_reverse(_x.copy())
 
     # fft
     step: int = 1
+    half_step: int = step
     index: int = N
     sin_table = np.sin(2 * np.pi / N * np.arange(N // 4 + 1))
+    N2 = N // 2
     N4 = N // 4
+    i: int = 0
+    w: complex = 0
 
-    while step < N:
-        half_step: int = step
+    # step <= N / 2のときは2つのバタフライ演算器を用いて計算
+    while step < N2:
+        half_step = step
         step = step * 2
         index = index // 2
-        for k in range(0, N, step):
-            w_index: int = 0
-            for j in range(half_step):
+        for k in range(0, N2, step):
+            i = 0
+            for j in range(0, half_step):
                 # sin tableから回転因子を計算
-                w: complex
-                i = w_index
                 if 0 <= i <= N4:
                     # 第4象限
                     w = sin_table[N4 - i] - 1j * sin_table[i]
@@ -142,15 +124,49 @@ def fft_fpga(_x: NDArray[np.complex128]) -> NDArray[np.complex128]:
                     w = -sin_table[3 * N4 - i] + 1j * sin_table[i - 2 * N4]
                 elif 3 * N4 < i < N:
                     # 第1象限
-                    w = sin_table[i - 3 * N4] + 1j * sin_table[4 * N4 - i]
+                    # 4 * N4をするとビット幅が増えるので、i & (N4 - 1)
+                    w = sin_table[i - 3 * N4] + 1j * sin_table[i & (N4 - 1)]
 
                 # バタフライ演算
-                u: complex = x[k + j]
-                t: complex = w * x[k + j + half_step]
-                x[k + j] = u + t
-                x[k + j + half_step] = u - t
-                w_index += index
-                w_index %= N
+                u0: complex = x[k + j]
+                t0: complex = w * x[k + j + half_step]
+                u1: complex = x[k + j + N2]
+                t1: complex = w * x[k + j + N2 + half_step]
+                x[k + j] = u0 + t0
+                x[k + j + half_step] = u0 - t0
+                x[k + j + N2] = u1 + t1
+                x[k + j + N2 + half_step] = u1 - t1
+                i += index
+                i %= N
+
+    # step == Nのときは1つのバタフライ演算器を用いて計算
+    half_step = N2
+    step = N
+    index = 1
+    i = 0
+    for j in range(half_step):
+        # sin tableから回転因子を計算
+        if 0 <= i <= N4:
+            # 第4象限
+            w = sin_table[N4 - i] - 1j * sin_table[i]
+        elif N4 < i <= 2 * N4:
+            # 第3象限
+            w = -sin_table[i - N4] - 1j * sin_table[2 * N4 - i]
+        elif 2 * N4 < i <= 3 * N4:
+            # 第2象限
+            w = -sin_table[3 * N4 - i] + 1j * sin_table[i - 2 * N4]
+        elif 3 * N4 < i < N:
+            # 第1象限
+            # 4 * N4をするとビット幅が増えるので、i & (N4 - 1)
+            w = sin_table[i - 3 * N4] + 1j * sin_table[i & (N4 - 1)]
+
+        # バタフライ演算
+        u: complex = x[j]
+        t: complex = w * x[j + half_step]
+        x[j] = u + t
+        x[j + half_step] = u - t
+        i += index
+        i %= N
 
     return x
 
