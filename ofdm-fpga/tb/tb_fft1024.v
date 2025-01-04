@@ -1,6 +1,5 @@
 `timescale 1ns / 1ps
 
-// tb_fft1024の実験用
 module mux_sp_fft(
     input oce_i0,
     input oce_i1,
@@ -79,11 +78,11 @@ reg disp_wre1;
 reg [10:0] disp_ad1;
 reg [31:0] disp_din1;
 
+reg s;
+
 // 27MHz
 parameter CLK_FREQ = 27_000_000;
 parameter CLK_FREQ_MHZ = 27.0;
-
-reg s;
 
 mux_sp_fft mux_sp_fft_instance0(
     disp_oce0,
@@ -127,6 +126,7 @@ mux_sp_fft mux_sp_fft_instance1(
 Gowin_SP_fft0 gowin_sp_fft0_instance(dout0, clk, oce0, ce0, ~rst_n, wre0, ad0, din0);
 Gowin_SP_fft1 gowin_sp_fft1_instance(dout1, clk, oce1, ce1, ~rst_n, wre1, ad1, din1);
 Gowin_pROM_w gowin_prom_w_instance(dout_w, clk, oce_w, ce_w, ~rst_n, ad_w);
+
 fft1024 fft1024_instance(
     clk,
     rst_n,
@@ -171,14 +171,14 @@ always @(posedge clk or negedge rst_n) begin
     else begin
         case (state)
             4'd0: begin
-                state <= state + 1'd1;
+                state <= 4'd1;
                 start <= 1'd1;
                 s <= 1'd1;
             end
             4'd1: begin
+                start <= 1'd0;
                 if (finish == 1'd1) begin
-                    start <= 1'd0;
-                    state <= state + 1'd1;
+                    state <= 4'd2;
                     s <= 1'd0;
                     disp_oce0 <= 1'd1;
                     disp_ce0 <= 1'd1;
@@ -191,66 +191,55 @@ always @(posedge clk or negedge rst_n) begin
                     disp_ad1 <= 11'd0;
                     disp_din1 <= 32'd0;
                 end
-                else begin
-                    start <= 1'd0;
-                end
             end
             4'd2: begin
-                state <= state + 1'd1;
+                state <= 4'd3;
                 disp_ad0 <= addr_cnt + 1'd1;
                 addr_cnt <= addr_cnt + 1'd1;
             end
             4'd3: begin
-                // readができるようになるのを待つため、1サイクル待機
-                state <= state + 1'd1;
-                disp_ad0 <= addr_cnt + 1'd1;
-                addr_cnt <= addr_cnt + 1'd1;
-                // print ad0=0
-                $display("%d", dout0);
-            end
-            4'd4: begin
                 $display("%d", dout0);
                 disp_ad0 <= addr_cnt + 1'd1;
                 if (addr_cnt == 11'd510) begin
-                    state <= state + 1'd1;
+                    state <= 4'd4;
                     addr_cnt <= 11'd0;
                 end
                 else begin
                     addr_cnt <= addr_cnt + 1'd1;
                 end
             end
-            4'd5: begin
+            4'd4: begin
                 // print ad0=510
                 $display("%d", dout0);
-                state <= state + 1'd1;
+                state <= 4'd5;
             end
-            4'd6: begin
+            4'd5: begin
                 // print ad0=511
                 $display("%d", dout0);
                 disp_ad1 <= addr_cnt + 1'd1;
                 addr_cnt <= addr_cnt + 1'd1;
-                state <= state + 1'd1;
+                state <= 4'd6;
             end
-            4'd7: begin
+            4'd6: begin
                 $display("%d", dout1);
                 disp_ad1 <= addr_cnt + 1'd1;
                 if (addr_cnt == 11'd510) begin
-                    state <= state + 1'd1;
+                    state <= 4'd7;
                     addr_cnt <= 11'd0;
                 end
                 else begin
                     addr_cnt <= addr_cnt + 1'd1;
                 end
             end
-            4'd8: begin
+            4'd7: begin
                 // print ad1=510
                 $display("%d", dout1);
-                state <= state + 1'd1;
+                state <= 4'd8;
             end
-            4'd9: begin
+            4'd8: begin
                 // print ad1=511
                 $display("%d", dout1);
-                state <= state + 1'd1;
+                state <= 4'd9;
             end
             default: begin
                 // 何もしない

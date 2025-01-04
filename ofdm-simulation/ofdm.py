@@ -509,18 +509,24 @@ def compare_np_array(a: Any, b: Any) -> bool:
 
 def single_symbol(
     original_data: NDArray[np.int32] = np.array([], dtype=np.int32),
-) -> Tuple[Modulation.Result, Demodulation.Result]:
+    is_no_carrier: bool = False,
+) -> Tuple[Modulation.Result, Demodulation.Result, NDArray[np.int32]]:
     if len(original_data) == 0:
         original_data = np.concatenate(
             ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55]),
             dtype=np.int32,
         )
+    assert len(original_data) == 12
 
-    print(original_data)
     mod = Modulation()
-    res_mod = mod.calculate(original_data)
     demod = Demodulation()
-    res_demod = demod.calculate(res_mod.t, res_mod.x)
+    # is_no_carrier = Trueのときは搬送波なしのプログラムが実行される
+    res_mod = mod.calculate(original_data, is_no_carrier)
+    res_demod: Demodulation.Result
+    if is_no_carrier:
+        res_demod = demod.calculate_no_carrier(res_mod.ifft_t, res_mod.ifft_x)
+    else:
+        res_demod = demod.calculate(res_mod.t, res_mod.x)
     ans_data = res_demod.data
 
     assert (
@@ -530,10 +536,9 @@ def single_symbol(
     for i in range(len(original_data)):
         assert (
             original_data[i] == ans_data[i]
-        ), f"original = {original_data[i]}, answer = {ans_data[i]}"
-        print(f"original = {original_data[i]}, answer = {ans_data[i]}")
+        ), f"original = {original_data}, answer = {ans_data}"
 
-    return res_mod, res_demod
+    return res_mod, res_demod, original_data
 
 
 def plot_single_symbol(
@@ -582,6 +587,7 @@ def plot_single_symbol(
     plt.show()
 
 
+# TODO: 余計なprintが多いので少なくする
 def multi_symbol(
     SYMBOL_NUMBER: int,
     shift: NDArray[np.int32] = np.array([], dtype=np.int32),

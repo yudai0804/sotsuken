@@ -97,3 +97,15 @@ Run
 ```
 docker run -v .:/app sotsuken:latest bash -c "poetry install --no-root && poetry run your-command"
 ```
+
+# Design
+## main.pyとpytestの使い分けについて
+プログラムの実行方法は、
+- main.pyのコマンドライン引数を与えて実行
+- pytestで実行
+の2種類があります。  
+どちらに記述するかの基準は
+グラフのプロット、または入力をキーボード(ファイル)から与えるなどのインタラクティブな動作を伴うときはmain.pyに  
+入力と出力を一致しているかを確かめたいときはpytest  
+としています。  
+当然ですが、main.pyで実行可能なものは、testが書かれているものに関してはpytestからも実行が可能です。(するかは別として)
