@@ -171,14 +171,14 @@ always @(posedge clk or negedge rst_n) begin
     else begin
         case (state)
             4'd0: begin
-                state <= state + 1'd1;
+                state <= 4'd1;
                 start <= 1'd1;
                 s <= 1'd1;
             end
             4'd1: begin
                 if (finish == 1'd1) begin
                     start <= 1'd0;
-                    state <= state + 1'd1;
+                    state <= 4'd2;
                     s <= 1'd0;
                     disp_oce0 <= 1'd1;
                     disp_ce0 <= 1'd1;
@@ -196,61 +196,53 @@ always @(posedge clk or negedge rst_n) begin
                 end
             end
             4'd2: begin
-                state <= state + 1'd1;
+                state <= 4'd3;
                 disp_ad0 <= addr_cnt + 1'd1;
                 addr_cnt <= addr_cnt + 1'd1;
             end
             4'd3: begin
-                // readができるようになるのを待つため、1サイクル待機
-                state <= state + 1'd1;
-                disp_ad0 <= addr_cnt + 1'd1;
-                addr_cnt <= addr_cnt + 1'd1;
-                // print ad0=0
-                $display("%d", dout0);
-            end
-            4'd4: begin
                 $display("%d", dout0);
                 disp_ad0 <= addr_cnt + 1'd1;
                 if (addr_cnt == 11'd510) begin
-                    state <= state + 1'd1;
+                    state <= 4'd4;
                     addr_cnt <= 11'd0;
                 end
                 else begin
                     addr_cnt <= addr_cnt + 1'd1;
                 end
             end
-            4'd5: begin
+            4'd4: begin
                 // print ad0=510
                 $display("%d", dout0);
-                state <= state + 1'd1;
+                state <= 4'd5;
             end
-            4'd6: begin
+            4'd5: begin
                 // print ad0=511
                 $display("%d", dout0);
                 disp_ad1 <= addr_cnt + 1'd1;
                 addr_cnt <= addr_cnt + 1'd1;
-                state <= state + 1'd1;
+                state <= 4'd6;
             end
-            4'd7: begin
+            4'd6: begin
                 $display("%d", dout1);
                 disp_ad1 <= addr_cnt + 1'd1;
                 if (addr_cnt == 11'd510) begin
-                    state <= state + 1'd1;
+                    state <= 4'd7;
                     addr_cnt <= 11'd0;
                 end
                 else begin
                     addr_cnt <= addr_cnt + 1'd1;
                 end
             end
-            4'd8: begin
+            4'd7: begin
                 // print ad1=510
                 $display("%d", dout1);
-                state <= state + 1'd1;
+                state <= 4'd8;
             end
-            4'd9: begin
+            4'd8: begin
                 // print ad1=511
                 $display("%d", dout1);
-                state <= state + 1'd1;
+                state <= 4'd9;
             end
             default: begin
                 // 何もしない
