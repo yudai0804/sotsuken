@@ -1,6 +1,5 @@
 `timescale 1ns / 1ps
 
-// tb_fft1024の実験用
 module mux_sp_fft(
     input oce_i0,
     input oce_i1,
@@ -79,11 +78,11 @@ reg disp_wre1;
 reg [10:0] disp_ad1;
 reg [31:0] disp_din1;
 
+reg s;
+
 // 27MHz
 parameter CLK_FREQ = 27_000_000;
 parameter CLK_FREQ_MHZ = 27.0;
-
-reg s;
 
 mux_sp_fft mux_sp_fft_instance0(
     disp_oce0,
@@ -127,6 +126,7 @@ mux_sp_fft mux_sp_fft_instance1(
 Gowin_SP_fft0 gowin_sp_fft0_instance(dout0, clk, oce0, ce0, ~rst_n, wre0, ad0, din0);
 Gowin_SP_fft1 gowin_sp_fft1_instance(dout1, clk, oce1, ce1, ~rst_n, wre1, ad1, din1);
 Gowin_pROM_w gowin_prom_w_instance(dout_w, clk, oce_w, ce_w, ~rst_n, ad_w);
+
 fft1024 fft1024_instance(
     clk,
     rst_n,
@@ -176,8 +176,8 @@ always @(posedge clk or negedge rst_n) begin
                 s <= 1'd1;
             end
             4'd1: begin
+                start <= 1'd0;
                 if (finish == 1'd1) begin
-                    start <= 1'd0;
                     state <= 4'd2;
                     s <= 1'd0;
                     disp_oce0 <= 1'd1;
@@ -190,9 +190,6 @@ always @(posedge clk or negedge rst_n) begin
                     disp_wre1 <= 1'd0;
                     disp_ad1 <= 11'd0;
                     disp_din1 <= 32'd0;
-                end
-                else begin
-                    start <= 1'd0;
                 end
             end
             4'd2: begin
