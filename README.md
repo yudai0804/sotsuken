@@ -83,7 +83,11 @@ black(formatter)
 ```
 poetry run black .
 ```
-
+ローカルでCIを走らせる。
+GitHub Actionsで動いているCIと同じ内容が実行できる。
+```
+./scripts/ci.sh
+```
 # Docker
 Build
 ```
