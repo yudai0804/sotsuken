@@ -526,7 +526,7 @@ def single_symbol(
     if is_no_carrier:
         res_demod = demod.calculate_no_carrier(res_mod.ifft_t, res_mod.ifft_x)
     else:
-        res_demod = demod.calculate(res_mod.t, res_mod)
+        res_demod = demod.calculate(res_mod.t, res_mod.x)
     ans_data = res_demod.data
 
     assert (
