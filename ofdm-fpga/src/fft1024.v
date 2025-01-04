@@ -55,14 +55,14 @@ reg w_im_sign;
 reg [9:0] x_index;
 reg [9:0] x_half_step_index;
 
-localparam S_IDLE = 3'd0;
-localparam S_BUTTERFLY2 = 3'd1;
-localparam S_BUTTERFLY1 = 3'd2;
+localparam S_IDLE = 2'd0;
+localparam S_BUTTERFLY2 = 2'd1;
+localparam S_BUTTERFLY1 = 2'd2;
 // S_FINISHがある理由はメモリの書き込みが終わるのを待つため。
-localparam S_FINISH = 3'd3;
+localparam S_FINISH = 2'd3;
 
-reg [2:0] state;
-reg [2:0] next_state;
+reg [1:0] state;
+reg [1:0] next_state;
 reg [2:0] clk_cnt;
 
 wire [63:0] butterfly0_res;
