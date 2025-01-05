@@ -1,6 +1,3 @@
-// tb_uart_txはテストベンチのみ
-// 期待した値かのテストは大変なのでやらない(とくにコーナーケース)
-
 `timescale 1ns / 1ps
 
 module testbench;
@@ -31,13 +28,6 @@ uart_tx#(
     tx_pin,
     finish
 );
-
-    // task assert(input condition, input [1023:0] message);
-    //     if (!condition) begin
-    //         $display("ASSERTION FAILED at time %0t: %s", $time, message);
-    //         $stop; // シミュレーション停止
-    //     end
-    // endtask
 
 // assert
 task assert(input condition);
