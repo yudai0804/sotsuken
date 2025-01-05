@@ -66,35 +66,34 @@ always @(posedge clk or negedge rst_n) begin
                     if (clk_cnt != 4'd9) begin
                         cycle <= 8'd0;
                         clk_cnt <= clk_cnt + 1'd1;
-                        case (clk_cnt)
-                            4'd0: tx_pin <= latch_data[0];
-                            4'd1: tx_pin <= latch_data[1];
-                            4'd2: tx_pin <= latch_data[2];
-                            4'd3: tx_pin <= latch_data[3];
-                            4'd4: tx_pin <= latch_data[4];
-                            4'd5: tx_pin <= latch_data[5];
-                            4'd6: tx_pin <= latch_data[6];
-                            4'd7: tx_pin <= latch_data[7];
-                            // stop bit
-                            4'd8: tx_pin <= 1'd1;
-                        endcase
                     end
-                    else begin
+                    case (clk_cnt)
+                        4'd0: tx_pin <= latch_data[0];
+                        4'd1: tx_pin <= latch_data[1];
+                        4'd2: tx_pin <= latch_data[2];
+                        4'd3: tx_pin <= latch_data[3];
+                        4'd4: tx_pin <= latch_data[4];
+                        4'd5: tx_pin <= latch_data[5];
+                        4'd6: tx_pin <= latch_data[6];
+                        4'd7: tx_pin <= latch_data[7];
+                        // stop bit
+                        4'd8: tx_pin <= 1'd1;
                         // 終了
-                        // 4'd9
-                        clk_cnt <= 4'd0;
-                        if (start == 1'd1) begin
-                            latch_data <= data;
-                            // start bit
-                            tx_pin <= 1'd0;
-                            cycle <= 8'd1;
+                        4'd9: begin
+                            clk_cnt <= 4'd0;
+                            if (start == 1'd1) begin
+                                latch_data <= data;
+                                // start bit
+                                tx_pin <= 1'd0;
+                                cycle <= 8'd1;
+                            end
+                            else begin
+                                cycle <= 8'd0;
+                                finish <= 1'd1;
+                                state <= S_IDLE;
+                            end
                         end
-                        else begin
-                            cycle <= 8'd0;
-                            finish <= 1'd1;
-                            state <= S_IDLE;
-                        end
-                    end
+                    endcase
                 end
                 else begin
                     cycle <= cycle + 1'd1;
