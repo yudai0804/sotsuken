@@ -10,10 +10,7 @@
 // 1 - floor(27e6 / 115200) / (27e6 / 115200) = 0.001600
 // よりボーレートの誤差は0.16%
 
-// TODO: uart_rxも書き直す
-// TODO: cycleのノンブロッキング代入周りが怪しいので確認する
-
-module uart_rx 
+module uart_rx
 #(
     // 27MHz
     parameter CLK_FREQ = 27_000_000,
@@ -23,84 +20,80 @@ module uart_rx
     input clk,
     input rst_n,
     input rx_pin,
-    output reg[7:0] rx_data,
-    output reg rx_available,
+    output reg [7:0] data,
+    output reg available,
     // 1のときrx_availableをクリアする
-    input clear_rx_available
+    input clear_available
 );
-localparam CYCLE = CLK_FREQ / BOUD_RATE;
-localparam CENTER_CYCLE = CYCLE / 2;
-localparam S_IDLE = 2'd0;
-localparam S_DATA = 2'd1;
-localparam S_STOP1 = 2'd2;
-localparam S_STOP2 = 2'd3;
 
+localparam CYCLE = CLK_FREQ / BOUD_RATE;
+localparam HALF_CYCLE = CYCLE / 2;
+localparam S_IDLE = 1'd0;
+localparam S_RUNNING = 1'd1;
 // 27e6 / 115200 = 234
 // より8bitあれば十分
+// NOTE: 115200より遅くしたら、オーバーフローする可能性があるので注意
 reg [7:0] cycle;
-reg [1:0] state;
-reg [1:0] next_state;
-reg [2:0] next_bit;
-reg [2:0] bit;
 reg [7:0] tmp_data;
+reg state;
+reg [4:0] clk_cnt;
 
 always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
-        cycle <= 8'hff;
-        state <= S_IDLE;
-        next_state <= S_IDLE;
-        bit <= 3'd0;
-        next_bit <= 3'd0;
-        rx_data <= 8'd0;
+        data <= 8'd0;
+        available <= 1'd0;
+        cycle <= 8'd0;
         tmp_data <= 8'd0;
-        rx_available <= 1'd0;
+        state <= S_IDLE;
+        clk_cnt <= 5'd0;
     end
     else begin
-        if (clear_rx_available == 1'd1)
-            rx_available <= 1'd0;
-
-        state <= next_state;
-        bit <= next_bit;
-        cycle <= cycle + 1'd1;
-
+        if (clear_available == 1'd1 && (state == S_RUNNING && clk_cnt == 5'd17) == 1'd0) begin
+            available <= 1'd0;
+        end
         case (state)
             S_IDLE: begin
-                // detect start bit
                 if (rx_pin == 1'd0) begin
-                    if (cycle == CENTER_CYCLE - 2) begin
-                        cycle <= 8'hff;
-                        next_state <= S_DATA;
+                    if (cycle == HALF_CYCLE - 1) begin
+                        // start bit検出
+                        cycle <= 8'd0;
+                        state <= S_RUNNING;
+                        clk_cnt <= 5'd0;
+                    end
+                    else begin
+                        cycle <= cycle + 1'd1;
                     end
                 end
-                else
-                    cycle <= 8'hff;
+                else begin
+                    cycle <= 8'd0;
+                end
             end
-            S_DATA: begin
-                if (cycle == CYCLE - 2) begin
-                    cycle <= 8'hff;
-                    tmp_data[bit] <= rx_pin;
-                    if (bit == 3'd7) begin
-                        next_bit <= 3'd0;
-                        next_state <= S_STOP1;
+            S_RUNNING: begin
+                if (cycle == HALF_CYCLE - 1) begin
+                    cycle <= 8'd0;
+                    if (clk_cnt != 5'd18) begin
+                        clk_cnt <= clk_cnt + 1'd1;
                     end
-                    else
-                        next_bit <= bit + 1'd1;
+                    case (clk_cnt)
+                        5'd1: tmp_data[0] <= rx_pin;
+                        5'd3: tmp_data[1] <= rx_pin;
+                        5'd5: tmp_data[2] <= rx_pin;
+                        5'd7: tmp_data[3] <= rx_pin;
+                        5'd9: tmp_data[4] <= rx_pin;
+                        5'd11: tmp_data[5] <= rx_pin;
+                        5'd13: tmp_data[6] <= rx_pin;
+                        5'd15: tmp_data[7] <= rx_pin;
+                        // stop bit終了
+                        5'd18: begin
+                            clk_cnt <= 5'd0;
+                            data <= tmp_data;
+                            available <= 1'd1;
+                            state <= S_IDLE;
+                        end
+                    endcase
                 end
-            end
-            // 信号を真ん中で読むために0.5サイクルずらしたので、S_STOPは1.5サイクル
-            S_STOP1: begin
-                if (cycle == CYCLE - 2) begin
-                    cycle <= 8'hff;
-                    next_state <= S_STOP2;
-                end
-            end
-            // S_STOP2
-            default: begin
-                if (cycle == CENTER_CYCLE - 1) begin
-                    cycle <= 8'hff;
-                    next_state <= S_IDLE;
-                    rx_data <= tmp_data; 
-                    rx_available <= 1'd1;
+                else begin
+                    cycle <= cycle + 1'd1;
                 end
             end
         endcase
