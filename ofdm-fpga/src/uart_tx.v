@@ -67,21 +67,13 @@ always @(posedge clk or negedge rst_n) begin
                         cycle <= 8'd0;
                         clk_cnt <= clk_cnt + 1'd1;
                         case (clk_cnt)
-                            // bit0
                             4'd0: tx_pin <= latch_data[0];
-                            // bit1
                             4'd1: tx_pin <= latch_data[1];
-                            // bit2
                             4'd2: tx_pin <= latch_data[2];
-                            // bit3
                             4'd3: tx_pin <= latch_data[3];
-                            // bit4
                             4'd4: tx_pin <= latch_data[4];
-                            // bit5
                             4'd5: tx_pin <= latch_data[5];
-                            // bit6
                             4'd6: tx_pin <= latch_data[6];
-                            // bit7
                             4'd7: tx_pin <= latch_data[7];
                             // stop bit
                             4'd8: tx_pin <= 1'd1;
