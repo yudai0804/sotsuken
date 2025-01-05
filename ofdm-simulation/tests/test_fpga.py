@@ -71,3 +71,25 @@ def test_uart_rx() -> None:
 
     # 作業ディレクトリをもとの場所に移動
     os.chdir(start_dir)
+
+
+def test_mcp3002() -> None:
+    # ofdm-fpgaディレクトリに移動
+    start_dir = os.getcwd()
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    # ofdm-fpgaのあるディレクトリまで移動
+    os.chdir("../../ofdm-fpga")
+    # 実行
+    # 本当は良くないけど、mypyがうまく動かないので、Any型でごまかす
+    result: Any = subprocess.run(
+        "iverilog -o testbench tb/tb_mcp3002.v src/mcp3002.v -DSIMULATOR",
+        shell=True,
+    )
+    assert result.returncode == 0, "[Verilog] Bulid failed"
+    result = subprocess.run("vvp testbench", shell=True, capture_output=True, text=True)
+    assert result.returncode == 0, "[Verilog] error"
+    # Assertで落ちていないかチェック
+    assert ("ASSERTION FAILED" in result.stdout) == 0, "[Verilog] Assertion error"
+
+    # 作業ディレクトリをもとの場所に移動
+    os.chdir(start_dir)
