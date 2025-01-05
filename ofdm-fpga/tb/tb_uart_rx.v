@@ -54,7 +54,6 @@ initial begin
     // 初期化
     #0 rst_n = 0;
     #0 rst_n = 1;
-    // start
     #0 rx_pin = 1'd0;
     // 0
     #(1 /27.0 * 1000 * CYCLE) rx_pin = 1'd1;
