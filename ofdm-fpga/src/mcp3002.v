@@ -35,7 +35,7 @@ localparam CYCLE = CLK_FREQ / MCP3002_CLK_FREQ;
 localparam HALF_CYCLE = CYCLE / 2;
 reg state;
 reg [7:0] cycle;
-reg [4:0] clk_counter;
+reg [4:0] clk_cnt;
 reg [9:0] tmp_data;
 
 always @(posedge clk or negedge rst_n) begin
@@ -48,7 +48,7 @@ always @(posedge clk or negedge rst_n) begin
         adc_available <= 1'd1;
         state <= S_IDLE;
         cycle <= 8'd0;
-        clk_counter <= 5'd0;
+        clk_cnt <= 5'd0;
         tmp_data <= 10'd0;
     end
     else begin
@@ -61,7 +61,7 @@ always @(posedge clk or negedge rst_n) begin
                     state <= S_RUNNING;
                     // enableになった瞬間に出力をするので、cycleは1にしておく。
                     cycle <= 8'd1;
-                    clk_counter <= 5'd0;
+                    clk_cnt <= 5'd0;
                     adc_clk <= 1'd0;
                     adc_cs <= 1'd0;
                     adc_din <= START;
@@ -78,9 +78,9 @@ always @(posedge clk or negedge rst_n) begin
                     adc_clk <= ~adc_clk;
                     cycle <= 8'd0;
 
-                    if (clk_counter != 5'd31) begin
-                        clk_counter <= clk_counter + 1'd1;
-                        case (clk_counter)
+                    if (clk_cnt != 5'd31) begin
+                        clk_cnt <= clk_cnt + 1'd1;
+                        case (clk_cnt)
                             1: adc_din <= SGL_DIFF;
                             3: adc_din <= ODD_SIGN;
                             5: adc_din <= MSBF;
@@ -101,7 +101,7 @@ always @(posedge clk or negedge rst_n) begin
                     else begin
                         // 31
                         state <= S_IDLE;
-                        clk_counter <= 5'd0;
+                        clk_cnt <= 5'd0;
                         adc_data <= tmp_data;
                         adc_available <= 1'd1;
                     end
@@ -112,7 +112,7 @@ always @(posedge clk or negedge rst_n) begin
                 // 偶数がclk=0、奇数がclk=1
                 // 送信時は偶数側で操作、受信時は奇数側で操作
                 // TODO: MCP3002のクロックの画像を追加する
-                case (clk_counter)
+                case (clk_cnt)
                     0: begin
                         adc_cs <= 1'd0;
                         adc_din <= START;
