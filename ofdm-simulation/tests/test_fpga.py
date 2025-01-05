@@ -21,3 +21,25 @@ def test_fft1024() -> None:
     result: NDArray[np.complex128] = run_fft1024(x.copy())
     # decimal=3は調子がいいと通るが、安定しないのでdecimal=2
     npt.assert_almost_equal(expected, result, decimal=2)
+
+
+def test_uart_tx() -> None:
+    # ofdm-fpgaディレクトリに移動
+    start_dir = os.getcwd()
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    # ofdm-fpgaのあるディレクトリまで移動
+    os.chdir("../../ofdm-fpga")
+    # 実行
+    # 本当は良くないけど、mypyがうまく動かないので、Any型でごまかす
+    result: Any = subprocess.run(
+        "iverilog -o testbench tb/tb_uart_tx.v src/uart_tx.v -DSIMULATOR",
+        shell=True,
+    )
+    assert result.returncode == 0, "[Verilog] Bulid failed"
+    result = subprocess.run("vvp testbench", shell=True, capture_output=True, text=True)
+    assert result.returncode == 0, "[Verilog] error"
+    # Assertで落ちていないかチェック
+    assert ("ASSERTION FAILED" in result.stdout) == 0, "[Verilog] Assertion error"
+
+    # 作業ディレクトリをもとの場所に移動
+    os.chdir(start_dir)

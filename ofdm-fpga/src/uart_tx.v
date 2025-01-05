@@ -9,10 +9,7 @@
 // 1 - floor(27e6 / 115200) / (27e6 / 115200) = 0.001600
 // よりボーレートの誤差は0.16%
 
-// TODO: uart_txも書き直す
-// TODO: cycleのノンブロッキング代入周りが怪しいので確認する
-
-module uart_tx 
+module uart_tx
 #(
     // 27MHz
     parameter CLK_FREQ = 27_000_000,
@@ -21,81 +18,94 @@ module uart_tx
 )(
     input clk,
     input rst_n,
+    input start,
+    input [7:0] data,
     output reg tx_pin,
-    input tx_enable,
-    input [7:0] tx_data,
-    output reg tx_available
+    // 送信が終了したときもstart==1'd1であれば、次のデータを送信するのでfinishは0のまま
+    output reg finish
 );
-localparam CYCLE = CLK_FREQ / BOUD_RATE;
-localparam S_IDLE = 2'd0;
-localparam S_START = 2'd1;
-localparam S_DATA = 2'd2;
-localparam S_STOP = 2'd3;
 
+localparam CYCLE = CLK_FREQ / BOUD_RATE;
 // 27e6 / 115200 = 234
 // より8bitあれば十分
+// NOTE: 115200より遅いボーレートにするとcycleがオーバーフローする可能性あるので注意
 reg [7:0] cycle;
-reg [1:0] state;
-reg [1:0] next_state;
-reg [2:0] bit;
-reg [2:0] next_bit;
+
+localparam S_IDLE = 1'd0;
+localparam S_RUNNING = 1'd1;
+
+reg state;
 reg [7:0] latch_data;
+reg [3:0] clk_cnt;
 
 always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
-        cycle <= 8'hff;
-        state <= S_IDLE;
-        next_state <= S_IDLE;
-        bit <= 3'd0;
-        next_bit <= 3'd0;
-        latch_data <= 8'd0;
         tx_pin <= 1'd1;
-        tx_available <= 1'd1;
+        finish <= 1'd0;
+        cycle <= 8'd0;
+        state <= S_IDLE;
+        latch_data <= 8'd0;
+        clk_cnt <= 4'd0;
     end
     else begin
-        if (tx_enable == 1'd1 && next_state == S_IDLE) begin
-            latch_data <= tx_data;
-            next_state <= S_START;
-            cycle <= 8'd0;
-            next_bit <= 3'd0;
-            tx_available <= 1'd0;
-        end
-        else
-            cycle <= cycle + 1'd1;
-        
-        state <= next_state;
-        bit <= next_bit;
-        
         case (state)
             S_IDLE: begin
-                tx_pin <= 1'd1;
-            end
-            S_START: begin
-                tx_pin <= 1'd0; 
-                if (cycle == CYCLE - 2) begin
-                    cycle <= 8'd0;
-                    next_state <= S_DATA;
+                if (start == 1'd1) begin
+                    tx_pin <= 1'd0;
+                    // start == 1'd1になった瞬間に出力するので、cycleは1にしておく
+                    cycle <= 8'd1;
+                    clk_cnt <= 4'd0;
+
+                    finish <= 1'd0;
+                    latch_data <= data;
+                    state <= S_RUNNING;
                 end
             end
-            S_DATA: begin
-                tx_pin <= latch_data[bit];
-                if (cycle == CYCLE - 2) begin
-                    cycle <= 8'hff;
-                    if (bit == 3'd7) begin
-                        next_bit <= 3'd0;
-                        next_state <= S_STOP;
+            S_RUNNING: begin
+                if (cycle == CYCLE - 1) begin
+                    if (clk_cnt != 4'd9) begin
+                        cycle <= 8'd0;
+                        clk_cnt <= clk_cnt + 1'd1;
+                        case (clk_cnt)
+                            // bit0
+                            4'd0: tx_pin <= latch_data[0];
+                            // bit1
+                            4'd1: tx_pin <= latch_data[1];
+                            // bit2
+                            4'd2: tx_pin <= latch_data[2];
+                            // bit3
+                            4'd3: tx_pin <= latch_data[3];
+                            // bit4
+                            4'd4: tx_pin <= latch_data[4];
+                            // bit5
+                            4'd5: tx_pin <= latch_data[5];
+                            // bit6
+                            4'd6: tx_pin <= latch_data[6];
+                            // bit7
+                            4'd7: tx_pin <= latch_data[7];
+                            // stop bit
+                            4'd8: tx_pin <= 1'd1;
+                        endcase
                     end
                     else begin
-                        next_bit <= bit + 1'd1;
+                        // 終了
+                        // 4'd9
+                        clk_cnt <= 4'd0;
+                        if (start == 1'd1) begin
+                            latch_data <= data;
+                            // start bit
+                            tx_pin <= 1'd0;
+                            cycle <= 8'd1;
+                        end
+                        else begin
+                            cycle <= 8'd0;
+                            finish <= 1'd1;
+                            state <= S_IDLE;
+                        end
                     end
                 end
-            end
-            default: begin
-                tx_pin <= 1'd1;
-                if (cycle == CYCLE - 2) begin
-                    cycle <= 8'hff;
-                    next_state <= S_IDLE;
-                    tx_available <= 1'd1;
+                else begin
+                    cycle <= cycle + 1'd1;
                 end
             end
         endcase

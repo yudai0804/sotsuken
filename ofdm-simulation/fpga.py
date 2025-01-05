@@ -17,7 +17,7 @@ def run_fft1024(_x: NDArray[np.complex128]) -> NDArray[np.complex128]:
     s0, s1 = output_fft_sram(N, _x.copy())
     # ofdm-fpgaディレクトリに移動
     start_dir = os.getcwd()
-    # 一度test_fpga.pyがあるディレクトリまで移動
+    # 一度このファイルがあるディレクトリまで移動
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     # ofdm-fpgaのあるディレクトリまで移動
     os.chdir("../ofdm-fpga")
@@ -33,9 +33,11 @@ def run_fft1024(_x: NDArray[np.complex128]) -> NDArray[np.complex128]:
         "iverilog -o testbench tb/tb_fft1024.v src/fft1024.v src/butterfly.v src/fft_twindle_factor_index.v src/gowin/gowin_prom_w.v src/gowin/gowin_sp_fft0.v src/gowin/gowin_sp_fft1.v src/gowin/prim_sim.v -I tmp -DSIMULATOR",
         shell=True,
     )
-    assert result.returncode == 0
+    assert result.returncode == 0, "[Verilog] Bulid failed"
     result = subprocess.run("vvp testbench", shell=True, capture_output=True, text=True)
-    assert result.returncode == 0
+    assert result.returncode == 0, "[Verilog] error"
+    # Assertで落ちていないかチェック
+    assert ("ASSERTION FAILED" in result.stdout) == 0, "[Verilog] Assertion error"
 
     # 入力を切換
     mock_input = StringIO(result.stdout)
@@ -56,7 +58,7 @@ def run_ofdm(_x: NDArray[np.complex128]) -> NDArray[np.int32]:
     s0, s1 = output_fft_sram(N, _x.copy())
     # ofdm-fpgaディレクトリに移動
     start_dir = os.getcwd()
-    # 一度test_fpga.pyがあるディレクトリまで移動
+    # 一度このファイルがあるディレクトリまで移動
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     # ofdm-fpgaのあるディレクトリまで移動
     os.chdir("../ofdm-fpga")
@@ -72,9 +74,11 @@ def run_ofdm(_x: NDArray[np.complex128]) -> NDArray[np.int32]:
         "iverilog -o testbench tb/tb_ofdm.v src/ofdm.v src/fft1024.v src/butterfly.v src/fft_twindle_factor_index.v src/gowin/gowin_prom_w.v src/gowin/gowin_sp_fft0.v src/gowin/gowin_sp_fft1.v src/gowin/prim_sim.v -I tmp -DSIMULATOR",
         shell=True,
     )
-    assert result.returncode == 0
+    assert result.returncode == 0, "[Verilog] Bulid failed"
     result = subprocess.run("vvp testbench", shell=True, capture_output=True, text=True)
-    assert result.returncode == 0
+    assert result.returncode == 0, "[Verilog] error"
+    # Assertで落ちていないかチェック
+    assert ("ASSERTION FAILED" in result.stdout) == 0, "[Verilog] Assertion error"
 
     # 入力を切換
     mock_input = StringIO(result.stdout)
