@@ -13,7 +13,7 @@ wire tx_pin;
 parameter CLK_FREQ = 27_000_000;
 parameter CLK_FREQ_MHZ = 27.0;
 
-parameter BOUD_RATE = 115200;
+parameter BOUD_RATE = 9600;
 
 localparam CYCLE = CLK_FREQ / BOUD_RATE;
 
@@ -61,56 +61,56 @@ initial begin
     // 1回目
     // start bit
     // 最初にfinish = 0なのを確認
-    #(1 /27.0 * 1000 * 0.6) assert(finish == 1'd0);
+    #(1 / 27.0 * 1000 * 0.6) assert(finish == 1'd0);
     #0 assert(tx_pin == 1'd0);
     // bit 0
-    #(1 /27.0 * 1000 * CYCLE) assert(tx_pin == 1'd1);
+    #(1 / 27.0 * 1000 * CYCLE) assert(tx_pin == 1'd1);
     // bit 1
-    #(1 /27.0 * 1000 * CYCLE) assert(tx_pin == 1'd0);
+    #(1 / 27.0 * 1000 * CYCLE) assert(tx_pin == 1'd0);
     // bit 2
-    #(1 /27.0 * 1000 * CYCLE) assert(tx_pin == 1'd0);
+    #(1 / 27.0 * 1000 * CYCLE) assert(tx_pin == 1'd0);
     // bit 3
-    #(1 /27.0 * 1000 * CYCLE) assert(tx_pin == 1'd0);
+    #(1 / 27.0 * 1000 * CYCLE) assert(tx_pin == 1'd0);
     // bit 4
-    #(1 /27.0 * 1000 * CYCLE) assert(tx_pin == 1'd0);
+    #(1 / 27.0 * 1000 * CYCLE) assert(tx_pin == 1'd0);
     // bit 5
-    #(1 /27.0 * 1000 * CYCLE) assert(tx_pin == 1'd0);
+    #(1 / 27.0 * 1000 * CYCLE) assert(tx_pin == 1'd0);
     // bit 6
-    #(1 /27.0 * 1000 * CYCLE) assert(tx_pin == 1'd1);
+    #(1 / 27.0 * 1000 * CYCLE) assert(tx_pin == 1'd1);
     // bit 7
-    #(1 /27.0 * 1000 * CYCLE) assert(tx_pin == 1'd0);
+    #(1 / 27.0 * 1000 * CYCLE) assert(tx_pin == 1'd0);
     // stop bit
-    #(1 /27.0 * 1000 * CYCLE) assert(tx_pin == 1'd1);
+    #(1 / 27.0 * 1000 * CYCLE) assert(tx_pin == 1'd1);
     // 2回目
     // start bit
     // finish = 0なのを確認
-    #(1 /27.0 * 1000 * CYCLE) assert(finish == 1'd0);
+    #(1 / 27.0 * 1000 * CYCLE) assert(finish == 1'd0);
     #0 assert(tx_pin == 1'd0);
     // bit 0
-    #(1 /27.0 * 1000 * CYCLE) assert(tx_pin == 1'd1);
+    #(1 / 27.0 * 1000 * CYCLE) assert(tx_pin == 1'd1);
     #0 start = 1'd0;
     // bit 1
-    #(1 /27.0 * 1000 * CYCLE) assert(tx_pin == 1'd0);
+    #(1 / 27.0 * 1000 * CYCLE) assert(tx_pin == 1'd0);
     // bit 2
-    #(1 /27.0 * 1000 * CYCLE) assert(tx_pin == 1'd0);
+    #(1 / 27.0 * 1000 * CYCLE) assert(tx_pin == 1'd0);
     // bit 3
-    #(1 /27.0 * 1000 * CYCLE) assert(tx_pin == 1'd0);
+    #(1 / 27.0 * 1000 * CYCLE) assert(tx_pin == 1'd0);
     // bit 4
-    #(1 /27.0 * 1000 * CYCLE) assert(tx_pin == 1'd0);
+    #(1 / 27.0 * 1000 * CYCLE) assert(tx_pin == 1'd0);
     // bit 5
-    #(1 /27.0 * 1000 * CYCLE) assert(tx_pin == 1'd0);
+    #(1 / 27.0 * 1000 * CYCLE) assert(tx_pin == 1'd0);
     // bit 6
-    #(1 /27.0 * 1000 * CYCLE) assert(tx_pin == 1'd1);
+    #(1 / 27.0 * 1000 * CYCLE) assert(tx_pin == 1'd1);
     // bit 7
-    #(1 /27.0 * 1000 * CYCLE) assert(tx_pin == 1'd0);
+    #(1 / 27.0 * 1000 * CYCLE) assert(tx_pin == 1'd0);
     // stop bit
-    #(1 /27.0 * 1000 * CYCLE) assert(tx_pin == 1'd1);
+    #(1 / 27.0 * 1000 * CYCLE) assert(tx_pin == 1'd1);
     // 最後にちゃんとfinish=1になっていることを確認
-    #(1 /27.0 * 1000 * CYCLE) assert(finish == 1'd1);
+    #(1 / 27.0 * 1000 * CYCLE) assert(finish == 1'd1);
     // 終了したらtx_pin=1であることも確認
     #0 assert(tx_pin == 1'd1);
     // 適当な時刻で終了
-    #(1 /27.0 * 1000 * 2 * CYCLE) $finish;
+    #(1 / 27.0 * 1000 * 2 * CYCLE) $finish;
 end
 
 endmodule

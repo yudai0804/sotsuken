@@ -90,7 +90,7 @@ initial begin
     // 最後は1サイクル待機
     #(1 / 27.0 * 1000 * CYCLE) dout = 0;
     // availableなのを確認
-    #(1 /27.0 * 1000 * CYCLE) assert(available == 1'd1);
+    #(1 / 27.0 * 1000 * CYCLE) assert(available == 1'd1);
     // dataがただし以下確認
     #0 assert(data == 10'h2AA);
     // clearしたらちゃんとavailable=0になるか確認

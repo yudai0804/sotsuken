@@ -60,7 +60,7 @@ initial begin
     #0 ce = 1'd1;
     #0 ad = 11'd0;
     // 適当な時刻で終了
-    #(1 /27.0 * 1000 * 1000 * 2) $finish;
+    #(1 / 27.0 * 1000 * 1000 * 2) $finish;
 end
 
 endmodule

@@ -13,7 +13,7 @@ reg clear_available;
 parameter CLK_FREQ = 27_000_000;
 parameter CLK_FREQ_MHZ = 27.0;
 
-parameter BOUD_RATE = 115200;
+parameter BOUD_RATE = 9600;
 
 localparam CYCLE = CLK_FREQ / BOUD_RATE;
 localparam HALF_CYCLE = CYCLE / 2;
@@ -56,25 +56,25 @@ initial begin
     #0 rst_n = 1;
     #0 rx_pin = 1'd0;
     // 0
-    #(1 /27.0 * 1000 * CYCLE) rx_pin = 1'd1;
+    #(1 / 27.0 * 1000 * CYCLE) rx_pin = 1'd1;
     // 1
-    #(1 /27.0 * 1000 * CYCLE) rx_pin = 1'd0;
+    #(1 / 27.0 * 1000 * CYCLE) rx_pin = 1'd0;
     // 2
-    #(1 /27.0 * 1000 * CYCLE) rx_pin = 1'd0;
+    #(1 / 27.0 * 1000 * CYCLE) rx_pin = 1'd0;
     // 3
-    #(1 /27.0 * 1000 * CYCLE) rx_pin = 1'd0;
+    #(1 / 27.0 * 1000 * CYCLE) rx_pin = 1'd0;
     // 4
-    #(1 /27.0 * 1000 * CYCLE) rx_pin = 1'd0;
+    #(1 / 27.0 * 1000 * CYCLE) rx_pin = 1'd0;
     // 5
-    #(1 /27.0 * 1000 * CYCLE) rx_pin = 1'd0;
+    #(1 / 27.0 * 1000 * CYCLE) rx_pin = 1'd0;
     // 6
-    #(1 /27.0 * 1000 * CYCLE) rx_pin = 1'd1;
+    #(1 / 27.0 * 1000 * CYCLE) rx_pin = 1'd1;
     // 7
-    #(1 /27.0 * 1000 * CYCLE) rx_pin = 1'd0;
+    #(1 / 27.0 * 1000 * CYCLE) rx_pin = 1'd0;
     // stop
-    #(1 /27.0 * 1000 * CYCLE) rx_pin = 1'd1;
+    #(1 / 27.0 * 1000 * CYCLE) rx_pin = 1'd1;
     // availableなのを確認
-    #(1 /27.0 * 1000 * CYCLE) assert(available == 1'd1);
+    #(1 / 27.0 * 1000 * (CYCLE + 1)) assert(available == 1'd1);
     // dataがただし以下確認
     #0 assert(data == 8'h41);
     // clearしたらちゃんとavailable=0になるか確認
@@ -82,7 +82,7 @@ initial begin
     #(1 / 27.0 * 1000) assert(available == 1'd0);
 
     // 適当な時刻で終了
-    #(1 /27.0 * 1000 * CYCLE) $finish;
+    #(1 / 27.0 * 1000 * CYCLE) $finish;
 end
 
 endmodule
