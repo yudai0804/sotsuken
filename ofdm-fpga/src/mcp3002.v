@@ -35,12 +35,12 @@ localparam S_RUNNING = 1'd1;
 localparam CYCLE = CLK_FREQ / MCP3002_CLK_FREQ;
 localparam HALF_CYCLE = CYCLE / 2;
 reg state;
-reg [7:0] cycle;
+reg [15:0] cycle;
 reg [4:0] clk_cnt;
 reg [9:0] tmp_data;
 
 always @(posedge clk or negedge rst_n) begin
-    if(!rst_n) begin
+    if (!rst_n) begin
         adc_clk <= 1'd0;
         adc_din <= 1'd0;
         adc_cs <= 1'd1;
@@ -48,12 +48,12 @@ always @(posedge clk or negedge rst_n) begin
         adc_din <= 1'd0;
         adc_available <= 1'd1;
         state <= S_IDLE;
-        cycle <= 8'd0;
+        cycle <= 16'd0;
         clk_cnt <= 5'd0;
         tmp_data <= 10'd0;
     end
     else begin
-        if(adc_clear_available == 1'd1) begin
+        if (adc_clear_available == 1'd1) begin
             adc_available <= 1'd0;
         end
         case (state)
@@ -61,7 +61,7 @@ always @(posedge clk or negedge rst_n) begin
                 if(adc_enable == 1'd1) begin
                     state <= S_RUNNING;
                     // enableになった瞬間に出力をするので、cycleは1にしておく。
-                    cycle <= 8'd1;
+                    cycle <= 16'd1;
                     clk_cnt <= 5'd0;
                     adc_clk <= 1'd0;
                     adc_cs <= 1'd0;
@@ -77,7 +77,7 @@ always @(posedge clk or negedge rst_n) begin
             S_RUNNING: begin
                 if (cycle == HALF_CYCLE - 1) begin
                     adc_clk <= ~adc_clk;
-                    cycle <= 8'd0;
+                    cycle <= 16'd0;
 
                     if (clk_cnt != 5'd31) begin
                         clk_cnt <= clk_cnt + 1'd1;

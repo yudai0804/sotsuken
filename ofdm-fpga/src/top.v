@@ -20,11 +20,11 @@ module top(
     input rst_n,
     input rx_pin,
     output tx_pin,
-    output [5:0] led
-    // output adc_clk,
-    // output adc_din,
-    // input adc_dout,
-    // output adc_cs
+    output [5:0] led,
+    output adc_clk,
+    output adc_din,
+    input adc_dout,
+    output adc_cs
 );
 `endif
 
@@ -35,11 +35,14 @@ localparam CLK_FREQ_MHZ = 27.0;
 localparam UART_BOUD_RATE = 9600;
 // 0.9MHz
 localparam MCP3002_CLK_FREQ = 900_000;
+// localparam MCP3002_CLK_FREQ = 9000;
 
 localparam UART_CYCLE = CLK_FREQ / UART_BOUD_RATE;
 localparam UART_CYCLE_10 = UART_CYCLE * 10;
 localparam MCP3002_CYCLE = CLK_FREQ / MCP3002_CLK_FREQ;
 
+reg [5:0] led_reg;
+assign led = ~led_reg;
 reg [7:0] state;
 reg [15:0] cycle;
 
@@ -50,6 +53,11 @@ wire uart_tx_finish;
 wire [7:0] uart_rx_data;
 wire uart_rx_available;
 reg uart_rx_clear_available;
+
+reg adc_enable;
+wire [9:0] adc_data;
+wire adc_available;
+reg adc_clear_available;
 
 uart_tx#
 (
@@ -76,6 +84,23 @@ uart_rx#
     uart_rx_available,
     uart_rx_clear_available
 );
+
+mcp3002#
+(
+    CLK_FREQ,
+    MCP3002_CLK_FREQ
+)mcp3002_instance(
+    clk,
+    rst_n,
+    adc_clk,
+    adc_din,
+    adc_dout,
+    adc_cs,
+    adc_enable,
+    adc_data,
+    adc_available,
+    adc_clear_available
+);
 /*
 led#
 (
@@ -87,7 +112,26 @@ led#
 );
 */
 
+// mcp3002を使う
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        adc_enable <= 1'd0;
+        adc_clear_available <= 1'd0;
+        state <= 8'd0;
+        led_reg <= 6'd0;
+    end
+    else begin
+        case (state)
+            8'd0: begin
+                adc_enable <= 1'd1;
+                led_reg <= adc_data[9:4];
+            end
+        endcase
+    end
+end
+
 // オウム返しをする
+/*
 always @(posedge clk or negedge rst_n) begin
     if(!rst_n) begin
         uart_tx_start <= 1'd0;
@@ -115,6 +159,7 @@ always @(posedge clk or negedge rst_n) begin
         endcase
     end
 end
+*/
 
 // /*
 
@@ -169,7 +214,7 @@ initial begin
     #0 rst_n = 0;
     #0 rst_n = 1;
     // 適当な時間で終了
-    #(1 / 27.0 * 1000 * UART_CYCLE_10 * 2) $finish;
+    #(1 / 27.0 * 1000 * MCP3002_CYCLE * 16 * 2) $finish;
 end
 `endif
 endmodule
