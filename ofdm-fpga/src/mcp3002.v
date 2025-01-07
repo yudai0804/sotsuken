@@ -1,5 +1,6 @@
 // MCP3002は電源電圧2.7V、クロック周波数1.2MHzのとき最大75kspsまでいける。
 // 今回は電源電圧3.3V、クロック周波数0.9MHzで動かす。最大0.9M/16=56.25kspsまでいける。
+
 module mcp3002
 #(
     // 27MHz
@@ -34,12 +35,12 @@ localparam S_RUNNING = 1'd1;
 localparam CYCLE = CLK_FREQ / MCP3002_CLK_FREQ;
 localparam HALF_CYCLE = CYCLE / 2;
 reg state;
-reg [7:0] cycle;
-reg [4:0] clk_counter;
+reg [15:0] cycle;
+reg [4:0] clk_cnt;
 reg [9:0] tmp_data;
 
 always @(posedge clk or negedge rst_n) begin
-    if(!rst_n) begin
+    if (!rst_n) begin
         adc_clk <= 1'd0;
         adc_din <= 1'd0;
         adc_cs <= 1'd1;
@@ -47,21 +48,21 @@ always @(posedge clk or negedge rst_n) begin
         adc_din <= 1'd0;
         adc_available <= 1'd1;
         state <= S_IDLE;
-        cycle <= 8'd0;
-        clk_counter <= 5'd0;
+        cycle <= 16'd0;
+        clk_cnt <= 5'd0;
         tmp_data <= 10'd0;
     end
     else begin
-        if(adc_clear_available == 1'd1)
+        if (adc_clear_available == 1'd1) begin
             adc_available <= 1'd0;
-
+        end
         case (state)
             S_IDLE: begin
                 if(adc_enable == 1'd1) begin
                     state <= S_RUNNING;
                     // enableになった瞬間に出力をするので、cycleは1にしておく。
-                    cycle <= 8'd1;
-                    clk_counter <= 5'd0;
+                    cycle <= 16'd1;
+                    clk_cnt <= 5'd0;
                     adc_clk <= 1'd0;
                     adc_cs <= 1'd0;
                     adc_din <= START;
@@ -76,14 +77,15 @@ always @(posedge clk or negedge rst_n) begin
             S_RUNNING: begin
                 if (cycle == HALF_CYCLE - 1) begin
                     adc_clk <= ~adc_clk;
-                    cycle <= 8'd0;
+                    cycle <= 16'd0;
 
-                    if (clk_counter != 5'd31) begin
-                        clk_counter <= clk_counter + 1'd1;
-                        case (clk_counter)
+                    if (clk_cnt != 5'd31) begin
+                        clk_cnt <= clk_cnt + 1'd1;
+                        case (clk_cnt)
                             1: adc_din <= SGL_DIFF;
                             3: adc_din <= ODD_SIGN;
                             5: adc_din <= MSBF;
+                            // null bit
                             7: adc_din <= 1'd0;
                             10: tmp_data[9] <= adc_dout;
                             12: tmp_data[8] <= adc_dout;
@@ -101,7 +103,7 @@ always @(posedge clk or negedge rst_n) begin
                     else begin
                         // 31
                         state <= S_IDLE;
-                        clk_counter <= 5'd0;
+                        clk_cnt <= 5'd0;
                         adc_data <= tmp_data;
                         adc_available <= 1'd1;
                     end
@@ -109,31 +111,6 @@ always @(posedge clk or negedge rst_n) begin
                 else begin
                     cycle <= cycle + 1'd1;
                 end
-                // 偶数がclk=0、奇数がclk=1
-                // 送信時は偶数側で操作、受信時は奇数側で操作
-                // TODO: MCP3002のクロックの画像を追加する
-                case (clk_counter)
-                    0: begin
-                        adc_cs <= 1'd0;
-                        adc_din <= START;
-                    end
-                    2: adc_din <= SGL_DIFF;
-                    4: adc_din <= ODD_SIGN;
-                    6: adc_din <= MSBF;
-                    8: adc_din <= 1'd0;
-                    11: tmp_data[9] <= adc_dout;
-                    13: tmp_data[8] <= adc_dout;
-                    15: tmp_data[7] <= adc_dout;
-                    17: tmp_data[6] <= adc_dout;
-                    19: tmp_data[5] <= adc_dout;
-                    21: tmp_data[4] <= adc_dout;
-                    23: tmp_data[3] <= adc_dout;
-                    25: tmp_data[2] <= adc_dout;
-                    27: tmp_data[1] <= adc_dout;
-                    29: tmp_data[0] <= adc_dout;
-                    30: adc_cs <= 1'd1;
-                    // 31クロック目で終了
-                endcase
             end
         endcase
     end

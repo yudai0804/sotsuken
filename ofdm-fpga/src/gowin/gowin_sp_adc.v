@@ -4,7 +4,7 @@
 // width: 10
 // ad[12]==1の場合はsp3を使用、ad[12]==0の場合はsp0~2を使用
 
-module Gowin_SP_fft0 (dout, clk, oce, ce, reset, wre, ad, din);
+module Gowin_SP_adc (dout, clk, oce, ce, reset, wre, ad, din);
 
 output [9:0] dout;
 input clk;

@@ -220,6 +220,6 @@ initial begin
     #0 rst_n = 0;
     #0 rst_n = 1;
     // 適当な時刻で終了
-    #(1 /27.0 * 1000 * 600 * 27) $finish;
+    #(1 / 27.0 * 1000 * 600 * 27) $finish;
 end
 endmodule

@@ -5,14 +5,19 @@
     <Version>5</Version>
     <Device name="GW1NR-9C" pn="GW1NR-LV9QN88PC6/I5">gw1nr9c-004</Device>
     <FileList>
-        <File path="src/fft1024.v" type="file.verilog" enable="1"/>
         <File path="src/gowin/gowin_prom_w.v" type="file.verilog" enable="1"/>
+        <File path="src/gowin/gowin_sp_adc.v" type="file.verilog" enable="1"/>
         <File path="src/gowin/gowin_sp_fft0.v" type="file.verilog" enable="1"/>
         <File path="src/gowin/gowin_sp_fft1.v" type="file.verilog" enable="1"/>
+        <File path="src/butterfly.v" type="file.verilog" enable="1"/>
+        <File path="src/fft_twindle_factor_index.v" type="file.verilog" enable="1"/>
+        <File path="src/fft1024.v" type="file.verilog" enable="1"/>
         <File path="src/led.v" type="file.verilog" enable="1"/>
         <File path="src/mcp3002.v" type="file.verilog" enable="1"/>
+        <File path="src/ofdm.v" type="file.verilog" enable="1"/>
         <File path="src/top.v" type="file.verilog" enable="1"/>
         <File path="src/uart_rx.v" type="file.verilog" enable="1"/>
         <File path="src/uart_tx.v" type="file.verilog" enable="1"/>
+        <File path="src/ofdm-fpga.cst" type="file.cst" enable="1"/>
     </FileList>
 </Project>
