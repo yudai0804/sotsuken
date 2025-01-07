@@ -107,7 +107,10 @@ def test_top_build() -> None:
     # 実行
     # 本当は良くないけど、mypyがうまく動かないので、Any型でごまかす
     result: Any = subprocess.run(
-        "iverilog -o testbench src/top.v src/led.v src/uart_rx.v src/uart_tx.v -DSIMULATOR",
+        "iverilog -o testbench src/top.v src/mcp3002.v src/led.v src/uart_rx.v src/uart_tx.v -DSIMULATOR",
         shell=True,
     )
     assert result.returncode == 0, "[Verilog] Bulid failed"
+
+    # 作業ディレクトリをもとの場所に移動
+    os.chdir(start_dir)
