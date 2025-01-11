@@ -8,7 +8,7 @@ module ofdm(
     output reg [95:0] res,
     // BSRAM fft0
     // read onlyなので、dinとwreは使わないので削除
-    input wire [31:0] dout0,
+    input [31:0] dout0,
     output reg oce0,
     output reg ce0,
     output reg [10:0] ad0

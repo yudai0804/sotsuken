@@ -2,14 +2,14 @@ module demodulation_tx_res(
     input clk,
     input rst_n,
     // demodulation
-    input wire tx_res_enable,
+    input tx_res_enable,
     output reg tx_res_clear_enable,
     // uart_tx
     output reg uart_tx_start,
     output reg [7:0] uart_tx_data,
-    input wire uart_tx_finish,
+    input uart_tx_finish,
     // ofdm
-    input wire [95:0] ofdm_res
+    input [95:0] ofdm_res
 );
 
 reg [1:0] state;
@@ -94,19 +94,19 @@ module demodulation_read_adc
     input clk,
     input rst_n,
     // demodulation
-    input wire is_tmp_mode,
+    input is_tmp_mode,
     output reg ram_control_available,
-    input wire ram_control_clear_available,
+    input ram_control_clear_available,
     output reg [12:0] signal_detect_index,
     // mcp3002(adc)
     output reg adc_enable,
-    input wire [9:0] adc_data,
-    input wire adc_available,
+    input [9:0] adc_data,
+    input adc_available,
     output reg adc_clear_available,
     // ofdm
-    input wire ofdm_success,
+    input ofdm_success,
     // BSRAM ADC
-    input wire [9:0] dout_adc,
+    input [9:0] dout_adc,
     output reg oce_adc,
     output reg ce_adc,
     output reg wre_adc,
@@ -249,34 +249,34 @@ module demodulation_other(
     output reg [1:0] select_fft_ram,
     output reg select_adc_ram,
     output reg tx_res_enable,
-    input wire tx_res_clear_enable,
+    input tx_res_clear_enable,
     output reg is_tmp_mode,
-    input wire ram_control_available,
+    input ram_control_available,
     output reg ram_control_clear_available,
-    input wire [12:0] signal_detect_index,
+    input [12:0] signal_detect_index,
     // fft1024
     output reg fft1024_start,
-    input wire fft1024_finish,
+    input fft1024_finish,
     // ofdm
     output reg ofdm_start,
-    input wire ofdm_finish,
-    input wire ofdm_success,
+    input ofdm_finish,
+    input ofdm_success,
     // BSRAM fft0
-    input wire [31:0] dout0,
+    input [31:0] dout0,
     output reg oce0,
     output reg ce0,
     output reg wre0,
     output reg [10:0] ad0,
     output reg [31:0] din0,
     // BSRAM fft1
-    input wire [31:0] dout1,
+    input [31:0] dout1,
     output reg oce1,
     output reg ce1,
     output reg wre1,
     output reg [10:0] ad1,
     output reg [31:0] din1,
     // BSRAM ADC
-    input wire [9:0] dout_adc,
+    input [9:0] dout_adc,
     output reg oce_adc,
     output reg ce_adc,
     output reg wre_adc,
