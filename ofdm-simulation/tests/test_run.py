@@ -7,3 +7,7 @@ from run import *
 
 def test_simulator_single_symbol() -> None:
     simulator_single_symbol()
+
+
+def test_simulator_demodulation() -> None:
+    simulator_demodulation()

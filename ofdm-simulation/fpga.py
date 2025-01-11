@@ -100,6 +100,94 @@ def run_ofdm(_x: NDArray[np.complex128]) -> NDArray[np.int32]:
     return ofdm_res
 
 
+# TODO: 気が向いたかつ時間があれば、quantization10のtest書く
+def quantization10(x: float, max_abs: float) -> int:
+    # オペアンプの加算回路を使って、正負にふれる正弦波を正の値のみに変換する動作
+    x += max_abs
+    # 量子化
+    res: int = 0
+    val = max_abs
+    for i in range(10):
+        if x >= val:
+            res += 1 << (9 - i)
+            x -= val
+        val /= 2
+    return res
+
+
+def run_demodulation(x: NDArray[np.float64]) -> NDArray[np.int32]:
+    # 出力する文字列を作成
+    s = (
+        "`timescale 1ns / 1ps\n"
+        "module testbench_adc_dout#(parameter CLK_FREQ = 48_000_000, CLK_FREQ_MHZ = 48, ADC_SAMPLING_CYCLE = 1000, MCP3002_CYCLE = 60)(output reg adc_dout);\n"
+        "initial begin\n"
+        "    #0 adc_dout = 0;\n"
+    )
+    for i in range(len(x)):
+        # 4で割る理由はFPGAは固定小数点数なので、FFTの結果が1を超えるとオーバーフローしてしまうため。
+        # 4で割らない場合、パイロット信号の振幅が2なのでオーバーフローしてしまう。(2/4=0.5なので、4で割れば大丈夫)
+        xq = quantization10(x[i] / 4, 0.05 / 4)
+        s += f"    // i = {i}, x / 4 = {x[i] / 4}, xq = {xq}\n"
+        # 9bit目
+        s += f"    #((1 / CLK_FREQ_MHZ) * 1000 * (ADC_SAMPLING_CYCLE + MCP3002_CYCLE * 5)) adc_dout = {(xq & 0x200) >> 9};\n"
+        # 8~0ビット目
+        for j in range(8, -1, -1):
+            s += f"    #((1 / CLK_FREQ_MHZ) * 1000 * MCP3002_CYCLE) adc_dout = {(xq & (1 << (j))) >> j};\n"
+
+        # 最後は1サイクル待機
+        s += f"    // 最後は1サイクル待機\n"
+        s += f"    #((1 / CLK_FREQ_MHZ) * 1000 * MCP3002_CYCLE) adc_dout = 0;\n"
+        s += "\n"
+
+    s += "end\n"
+    s += "endmodule\n"
+
+    # ofdm-fpgaディレクトリに移動
+    start_dir = os.getcwd()
+    # 一度このファイルがあるディレクトリまで移動
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    # ofdm-fpgaのあるディレクトリまで移動
+    os.chdir("../ofdm-fpga")
+    # ファイルに書き出す
+    os.makedirs("tmp", exist_ok=True)
+    with open("tmp/testbench_adc_dout.v", "w") as file:
+        print(s, file=file)
+
+    command: str = (
+        "iverilog -o testbench src/top.v"
+        " src/gowin/gowin_prom_w.v"
+        " src/gowin/gowin_sp_adc.v"
+        " src/gowin/gowin_sp_fft0.v"
+        " src/gowin/gowin_sp_fft1.v"
+        " src/gowin/prim_sim.v"
+        " src/butterfly.v"
+        " src/demodulation.v"
+        " src/fft_twindle_factor_index.v"
+        " src/fft1024.v"
+        " src/led.v"
+        " src/mcp3002.v"
+        " src/ofdm.v"
+        " src/uart_rx.v"
+        " src/uart_tx.v"
+        " -I tmp"
+        " -DSIMULATOR"
+    )
+    result: Any = subprocess.run(
+        command,
+        shell=True,
+    )
+    assert result.returncode == 0, "[Verilog] Bulid failed"
+    # result = subprocess.run("vvp testbench", shell=True, capture_output=True, text=True)
+    # assert result.returncode == 0, "[Verilog] error"
+    # Assertで落ちていないかチェック
+    # assert ("ASSERTION FAILED" in result.stdout) == 0, "[Verilog] Assertion error"
+    # 作業ディレクトリをもとの場所に移動
+    os.chdir(start_dir)
+
+    x = np.array([-1] * 12, dtype=np.int32)
+    return x
+
+
 def output_butterfly_table() -> None:
     s = (
         "// x0 = x0 + x1 * w = (x0re + j * x0im) + ((x1re * wre - x1im * wim) + j(x1im * wre + x1re * wim)))\n"

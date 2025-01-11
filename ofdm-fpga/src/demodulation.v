@@ -1,3 +1,7 @@
+// TODO: SRAMの中身(FFTの結果)をprintする機能をつける
+//       その機能がないと、OFDMの特性の評価ができない
+//       よくを言うとADCの結果もprintする機能がほしい
+
 module demodulation_tx_res(
     input clk,
     input rst_n,
@@ -120,7 +124,7 @@ localparam ADC_SAMPLING_CYCLE = CLK_FREQ / ADC_SAMPLING_FREQ;
 localparam ADC_CYCLE = CLK_FREQ / MCP3002_CLK_FREQ;
 localparam ADC_CYCLE_16 = ADC_CYCLE * 16;
 localparam ADC_THRESHOLD = 10'h008;
-localparam integral_THRESHOLD = 16'h0080;
+localparam INTEGRAL_THRESHOLD = 16'h0080;
 
 reg [15:0] cycle;
 reg [15:0] integral;
@@ -204,7 +208,7 @@ always @(posedge clk or negedge rst_n) begin
                     if (cnt == 13'd0) begin
                         // 信号の立ち上がりが見つけられていない場合は積分する
                         // 積分した結果から信号の立ち上がりがあるかを確認する
-                        if (integral + adc_abs >= integral_THRESHOLD) begin
+                        if (integral + adc_abs >= INTEGRAL_THRESHOLD) begin
                             signal_detect_index <= index;
                             cnt <= cnt + 1'd1;
                         end
@@ -222,6 +226,7 @@ always @(posedge clk or negedge rst_n) begin
                 end
             end
             ADC_CYCLE_16 + 2: begin
+                cycle <= cycle + 1'd1;
                 adc_clear_available <= 1'd0;
                 // 書き込んだ1サイクル後にwre_adc=0にする
                 wre_adc <= 1'd0;
@@ -320,11 +325,13 @@ reg [9:0] adc_abs;
 reg [15:0] signed_adc;
 if (adc_data[9]) begin
     adc_abs = adc_data - 10'h100;
+    // 6bitシフト(64で割る)
     signed_adc = {6'd0, adc_data};
     calc_adc_din = {signed_adc, 16'd0};
 end
 else begin
     adc_abs = 10'h100 - adc_data;
+    // 6bitシフト(64で割る)
     signed_adc = ~adc_abs + 16'd1;
     calc_adc_din = {signed_adc, 16'd0};
 end
@@ -438,6 +445,7 @@ always @(posedge clk or negedge rst_n) begin
                     i <= i + 1'd1;
                 end
                 // NOTE: とりあえずdinはそのままの値を代入
+                // TODO: ここ直す
                 if (reverse_index > N2 - 1) begin
                     wre0 <= 1'd0;
                     wre1 <= 1'd1;
