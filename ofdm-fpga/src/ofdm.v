@@ -1,4 +1,3 @@
-// TODO: ofdmにclearを追加する
 module ofdm(
     input clk,
     input rst_n,
