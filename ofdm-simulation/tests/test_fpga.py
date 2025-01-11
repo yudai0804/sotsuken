@@ -106,6 +106,9 @@ def test_top_build() -> None:
     os.chdir("../../ofdm-fpga")
     # 実行
     # 本当は良くないけど、mypyがうまく動かないので、Any型でごまかす
+
+    # TODO: tmpがなかったりgowin_sp_fftx_defparam.vが存在しないとうまく動かないので直す
+    #       現状だと、test_top_buildが動く前に他のtestが走るのでその問題には直面していない
     command: str = (
         "iverilog -o testbench src/top.v"
         " src/gowin/gowin_prom_w.v"
