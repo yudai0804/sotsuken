@@ -10,6 +10,7 @@
         <File path="src/gowin/gowin_sp_fft0.v" type="file.verilog" enable="1"/>
         <File path="src/gowin/gowin_sp_fft1.v" type="file.verilog" enable="1"/>
         <File path="src/butterfly.v" type="file.verilog" enable="1"/>
+        <File path="src/demodulation.v" type="file.verilog" enable="1"/>
         <File path="src/fft_twindle_factor_index.v" type="file.verilog" enable="1"/>
         <File path="src/fft1024.v" type="file.verilog" enable="1"/>
         <File path="src/led.v" type="file.verilog" enable="1"/>

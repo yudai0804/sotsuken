@@ -7,21 +7,21 @@ module fft1024
     input start,
     output reg finish,
     // BSRAM fft0
-    input wire [31:0] dout0,
+    input [31:0] dout0,
     output reg oce0,
     output reg ce0,
     output reg wre0,
     output reg [10:0] ad0,
     output reg [31:0] din0,
     // BSRAM fft1
-    input wire [31:0] dout1,
+    input [31:0] dout1,
     output reg oce1,
     output reg ce1,
     output reg wre1,
     output reg [10:0] ad1,
     output reg [31:0] din1,
     // BSRAM(prom) w
-    input wire [15:0] dout_w,
+    input [15:0] dout_w,
     output reg oce_w,
     output reg ce_w,
     output reg [10:0] ad_w

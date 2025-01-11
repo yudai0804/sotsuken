@@ -8,9 +8,12 @@ module fft_twindle_factor_index
     output [23:0] res
 );
 
-localparam N4 = N / 4;
-localparam N4_2 = N4 * 2;
-localparam N4_3 = N4 * 3;
+// localparam N4 = N / 4;
+// localparam N4_2 = N4 * 2;
+// localparam N4_3 = N4 * 3;
+localparam N4 = 11'd256;
+localparam N4_2 = 11'd512;
+localparam N4_3 = 11'd768;
 
 function [23:0] calc;
     // calc = {w_re_sign, i_re, w_im_sign, i_im};
