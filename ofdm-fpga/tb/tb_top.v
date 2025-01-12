@@ -1,3 +1,4 @@
+// TODO: 次はADCのクロックがおかしいのの原因究明から
 // topのテストベンチだけど、demodulationのテストベンチも兼ねてる
 
 `timescale 1ns / 1ps
@@ -40,9 +41,33 @@ localparam UART_CYCLE_10 = UART_CYCLE * 10;
 localparam MCP3002_CYCLE = CLK_FREQ / MCP3002_CLK_FREQ;
 
 // tb
-top top_instance(clk, rst_n, 1'd0, tx_pin, led, adc_clk, adc_din, adc_dout, adc_cs);
+top
+#(
+    CLK_FREQ, 
+    UART_BOUD_RATE, 
+    MCP3002_CLK_FREQ, 
+    ADC_SAMPLING_FREQ
+)top_instance(
+    clk,
+    rst_n,
+    1'd0,
+    tx_pin,
+    led,
+    adc_clk,
+    adc_din,
+    adc_dout,
+    adc_cs
+);
 // adc_doutの動作はPythonで自動生成
-testbench_adc_dout#(CLK_FREQ, CLK_FREQ_MHZ, ADC_SAMPLING_CYCLE, MCP3002_CYCLE) testbench_adc_dout_instance(adc_dout);
+testbench_adc_dout
+#(
+    CLK_FREQ,
+    CLK_FREQ_MHZ,
+    MCP3002_CLK_FREQ,
+    ADC_SAMPLING_FREQ
+)testbench_adc_dout_instance(
+    adc_dout
+);
 
 // Generate clock
 initial begin
@@ -60,7 +85,7 @@ initial begin
     // 初期化
     #0 rst_n = 0;
     #0 rst_n = 1;
-    #(1 / CLK_FREQ_MHZ * 1000 * (ADC_SAMPLING_CYCLE * 2 * 1024)) $finish;
+    #(1 / CLK_FREQ_MHZ * 1000 * (ADC_SAMPLING_CYCLE * 1.5 * 1024)) $finish;
 end
 
 endmodule

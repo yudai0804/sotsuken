@@ -115,11 +115,28 @@ def quantization10(x: float, max_abs: float) -> int:
     return res
 
 
-def run_demodulation(x: NDArray[np.float64]) -> NDArray[np.int32]:
+def run_demodulation(
+    x: NDArray[np.float64], expected_X: NDArray[np.int32]
+) -> NDArray[np.int32]:
     # 出力する文字列を作成
     s = (
         "`timescale 1ns / 1ps\n"
-        "module testbench_adc_dout#(parameter CLK_FREQ = 48_000_000, CLK_FREQ_MHZ = 48, ADC_SAMPLING_CYCLE = 1000, MCP3002_CYCLE = 60)(output reg adc_dout);\n"
+        "\n"
+        f"// expected result: [{expected_X[0]}, {expected_X[1]}, {expected_X[2]}, {expected_X[3]}, {expected_X[4]}, {expected_X[5]}, {expected_X[6]}, {expected_X[7]}, {expected_X[8]}, {expected_X[9]}, {expected_X[10]}, {expected_X[11]}]\n"
+        "\n"
+        "module testbench_adc_dout\n"
+        "#(\n"
+        "    parameter CLK_FREQ = 48_000_000,\n"
+        "    parameter CLK_FREQ_MHZ = 48.0,\n"
+        "    parameter MCP3002_CLK_FREQ = 800_000,\n"
+        "    parameter ADC_SAMPLING_FREQ = 48_000\n"
+        ")(\n"
+        "    output reg adc_dout\n"
+        ");\n"
+        "\n"
+        "localparam MCP3002_CYCLE = CLK_FREQ / MCP3002_CLK_FREQ;\n"
+        "localparam ADC_SAMPLING_CYCLE = CLK_FREQ / ADC_SAMPLING_FREQ;\n"
+        "\n"
         "initial begin\n"
         "    #0 adc_dout = 0;\n"
     )
@@ -129,7 +146,10 @@ def run_demodulation(x: NDArray[np.float64]) -> NDArray[np.int32]:
         xq = quantization10(x[i] / 4, 0.05 / 4)
         s += f"    // i = {i}, x / 4 = {x[i] / 4}, xq = {xq}\n"
         # 9bit目
-        s += f"    #((1 / CLK_FREQ_MHZ) * 1000 * (ADC_SAMPLING_CYCLE + MCP3002_CYCLE * 5)) adc_dout = {(xq & 0x200) >> 9};\n"
+        if i == 0:
+            s += f"    #((1 / CLK_FREQ_MHZ) * 1000 * (MCP3002_CYCLE * 5 + 1.5)) adc_dout = {(xq & 0x200) >> 9};\n"
+        else:
+            s += f"    #((1 / CLK_FREQ_MHZ) * 1000 * (ADC_SAMPLING_CYCLE - MCP3002_CYCLE * 10)) adc_dout = {(xq & 0x200) >> 9};\n"
         # 8~0ビット目
         for j in range(8, -1, -1):
             s += f"    #((1 / CLK_FREQ_MHZ) * 1000 * MCP3002_CYCLE) adc_dout = {(xq & (1 << (j))) >> j};\n"

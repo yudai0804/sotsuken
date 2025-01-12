@@ -119,6 +119,7 @@ wire [9:0] sp_adc_din;
 // ==========fft1024==========
 wire fft1024_start;
 wire fft1024_finish;
+wire fft1024_clear;
 wire fft1024_oce0;
 wire fft1024_ce0;
 wire fft1024_wre0;
@@ -135,6 +136,7 @@ wire [31:0] fft1024_din1;
 wire ofdm_start;
 wire ofdm_finish;
 wire ofdm_success;
+wire ofdm_clear;
 wire [95:0] ofdm_res;
 wire ofdm_oce0;
 wire ofdm_ce0;
@@ -267,6 +269,7 @@ fft1024 fft1024_instance(
     rst_n,
     fft1024_start,
     fft1024_finish,
+    fft1024_clear,
     sp_fft0_dout,
     fft1024_oce0,
     fft1024_ce0,
@@ -291,6 +294,7 @@ ofdm ofdm_instance(
     ofdm_start,
     ofdm_finish,
     ofdm_success,
+    ofdm_clear,
     ofdm_res,
     sp_fft0_dout,
     ofdm_oce0,
@@ -316,9 +320,11 @@ demodulation
     adc_clear_available,
     fft1024_start,
     fft1024_finish,
+    fft1024_clear,
     ofdm_start,
     ofdm_finish,
     ofdm_success,
+    ofdm_clear,
     ofdm_res,
     sp_fft0_dout,
     demod_oce0,

@@ -6,6 +6,7 @@ module fft1024
     input rst_n,
     input start,
     output reg finish,
+    input clear,
     // BSRAM fft0
     input [31:0] dout0,
     output reg oce0,
@@ -165,11 +166,12 @@ always @(posedge clk or negedge rst_n) begin
         finish <= 1'd0;
     end
     else begin
+        if (clear == 1'd1 && state != S_FINISH) begin
+            finish <= 1'd0;
+        end
         case (state)
             S_IDLE: begin
                 if (start == 1'd1) begin
-                    finish <= 1'd0;
-
                     ce_w <= 1'd1;
                     oce_w <= 1'd1;
                     ad_w <= 11'd0;

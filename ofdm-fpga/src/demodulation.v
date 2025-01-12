@@ -135,8 +135,8 @@ reg [2:0] tmp_buff_index;
 
 wire [9:0] _adc_abs;
 wire [9:0] adc_abs;
-// adc_data - 10'h100
-assign _adc_abs = adc_data[9] ? adc_data - 10'h100 : 10'h100 - adc_data;
+// adc_data - 10'h200
+assign _adc_abs = adc_data[9] ? adc_data - 10'h200 : 10'h200 - adc_data;
 assign adc_abs = (_adc_abs >= ADC_THRESHOLD) ? _adc_abs : 10'h000;
 
 // mod 8192を行う
@@ -172,7 +172,7 @@ always @(posedge clk or negedge rst_n) begin
             // 書き込んだ1サイクル後にwre_adc=0にする
             wre_adc <= 1'd0;
         end
-        if (cycle != ADC_CYCLE_16 + 2 && ram_control_clear_available == 1'd1) begin
+        if (cycle != ADC_CYCLE_16 + 3 && ram_control_clear_available == 1'd1) begin
             ram_control_available <= 1'd0;
         end
         case (cycle)
@@ -186,9 +186,8 @@ always @(posedge clk or negedge rst_n) begin
                 cycle <= cycle + 1'd1;
                 adc_enable <= 1'd0;
             end
-            ADC_CYCLE_16 + 1: begin
+            ADC_CYCLE_16 + 2: begin
                 // ADCが完了し、availableに
-                // TODO: 動作確認をするときはちゃんと1サイクルだけavailableになっているか確認すること
                 cycle <= cycle + 1'd1;
                 adc_clear_available <= 1'd1;
                 if (is_tmp_mode == 1'd0) begin
@@ -225,7 +224,7 @@ always @(posedge clk or negedge rst_n) begin
                     // バッファにデータを一時保存する
                 end
             end
-            ADC_CYCLE_16 + 2: begin
+            ADC_CYCLE_16 + 3: begin
                 cycle <= cycle + 1'd1;
                 adc_clear_available <= 1'd0;
                 // 書き込んだ1サイクル後にwre_adc=0にする
@@ -262,10 +261,12 @@ module demodulation_other(
     // fft1024
     output reg fft1024_start,
     input fft1024_finish,
+    output reg fft1024_clear,
     // ofdm
     output reg ofdm_start,
     input ofdm_finish,
     input ofdm_success,
+    output reg ofdm_clear,
     // BSRAM fft0
     input [31:0] dout0,
     output reg oce0,
@@ -307,32 +308,33 @@ localparam SEL_ADC_RAM_ADC = 1'd0;
 localparam SEL_ADC_RAM_DEMOD = 1'd1;
 
 reg [7:0] state;
-reg [12:0] index;
 reg [12:0] i;
+reg [12:0] j;
 reg [3:0] shift_cnt;
-wire [10:0] reverse_index;
-assign reverse_index = {i[0], i[1], i[2], i[3], i[4], i[5], i[6], i[7], i[8], i[9], i[10]};
+wire [13:0] _reverse_index;
+wire [12:0] reverse_index;
 
-// mod 8192を行う
-function [12:0] calc_next_adc_index;
-input [12:0] i;
-calc_next_adc_index = (i == 13'd8191) ? 13'd0 : i + 13'd1;
-endfunction
+// signal_detect_index - shift_cntが負の数になっても対応可能なようにN足しておく
+assign _reverse_index = 14'd8192 + signal_detect_index - shift_cnt + {4'd0, j[0], j[1], j[2], j[3], j[4], j[5], j[6], j[7], j[8], j[9]};
+assign reverse_index = _reverse_index[12:0];
 
 function [31:0] calc_adc_din;
 input [9:0] adc_data;
 reg [9:0] adc_abs;
+reg [15:0] adc_abs16;
 reg [15:0] signed_adc;
 if (adc_data[9]) begin
-    adc_abs = adc_data - 10'h100;
+    adc_abs = adc_data - 10'h200;
     // 6bitシフト(64で割る)
-    signed_adc = {6'd0, adc_data};
+    adc_abs16 = {6'd0, adc_abs};
+    signed_adc = adc_abs16;
     calc_adc_din = {signed_adc, 16'd0};
 end
 else begin
-    adc_abs = 10'h100 - adc_data;
+    adc_abs = 10'h200 - adc_data;
     // 6bitシフト(64で割る)
-    signed_adc = ~adc_abs + 16'd1;
+    adc_abs16 = {6'd0, adc_abs};
+    signed_adc = ~adc_abs16 + 16'd1;
     calc_adc_din = {signed_adc, 16'd0};
 end
 endfunction
@@ -344,7 +346,10 @@ always @(posedge clk or negedge rst_n) begin
         tx_res_enable <= 1'd0;
         is_tmp_mode <= 1'd0;
         ram_control_clear_available <= 1'd0;
+        fft1024_start <= 1'd0;
+        fft1024_clear <= 1'd0;
         ofdm_start <= 1'd0;
+        ofdm_clear <= 1'd0;
         oce0 <= 1'd0;
         ce0 <= 1'd0;
         wre0 <= 1'd0;
@@ -362,8 +367,8 @@ always @(posedge clk or negedge rst_n) begin
         din_adc <= 10'd0;
 
         state <= S_READ_ADC;
-        index <= 13'd0;
         i <= 13'd0;
+        j <= 13'd0;
         shift_cnt <= 4'd0;
     end
     else begin
@@ -371,102 +376,75 @@ always @(posedge clk or negedge rst_n) begin
             S_READ_ADC: begin
                 if (ram_control_available == 1'd1) begin
                     state <= S_RAM_CONTROL;
-                    ram_control_clear_available <= 1'd0;
+                    ram_control_clear_available <= 1'd1;
                     is_tmp_mode <= 1'd1;
                     // TODO: 今はデバッグ中なので、is_tmp_modeはこれ以降1で固定
                     // デバッグが完了したら、他のステートのときは0にするようにする
                 end
             end
             S_RAM_CONTROL: begin
+                ram_control_clear_available <= 1'd0;
                 // 初期化
                 // メモリを選択
                 select_fft_ram <= SEL_FFT_RAM_DEMOD;
                 select_adc_ram <= SEL_ADC_RAM_DEMOD;
                 i <= 13'd0;
-                // 開始のインデックスを計算
-                // インデックスはshift_cnt分シフトする
-                if (signal_detect_index >= shift_cnt) begin
-                    index <= signal_detect_index - shift_cnt;
-                end
-                else begin
-                    index <= 13'd8191 + signal_detect_index - shift_cnt;
-                end
+                j <= 13'd0;
                 state <= S_RAM_CONTROL + 8'd1;
             end
             S_RAM_CONTROL + 8'd1: begin
-                // RAMを0で埋める
-                if (i == N2 - 1) begin
-                    i <= 13'd0;
-                    state <= S_RAM_CONTROL + 8'd2;
-                end
-                else begin
-                    i <= i + 1'd1;
-                end
+                // データ転送開始
+                j <= j + 1'd1;
                 oce0 <= 1'd1;
                 ce0 <= 1'd1;
-                wre0 <= 1'd1;
-                ad0 <= i[10:0];
-                din0 <= 32'd0;
+                wre0 <= 1'd0;
                 oce1 <= 1'd1;
                 ce1 <= 1'd1;
-                wre1 <= 1'd1;
-                ad1 <= i[10:0];
-                din1 <= 32'd0;
-                // 使わないけど、今後のために初期化
+                wre1 <= 1'd0;
                 oce_adc <= 1'd1;
                 ce_adc <= 1'd1;
                 wre_adc <= 1'd0;
-                ad_adc <= 13'd0;
-                din_adc <= 10'd0;
+                ad_adc <= reverse_index;
+                state <= S_RAM_CONTROL + 8'd2;
             end
             S_RAM_CONTROL + 8'd2: begin
-                // データ転送開始
-                i <= 13'd0;
-                wre0 <= 1'd0;
-                wre1 <= 1'd0;
-                ad_adc <= index;
-                index <= calc_next_adc_index(index);
+                j <= j + 1'd1;
+                ad_adc <= reverse_index;
                 state <= S_RAM_CONTROL + 8'd3;
             end
             S_RAM_CONTROL + 8'd3: begin
-                ad_adc <= index;
-                index <= calc_next_adc_index(index);
-                state <= S_RAM_CONTROL + 8'd4;
-            end
-            S_RAM_CONTROL + 8'd4: begin
                 // ADC->FFTにRAMのデータを転送
-                ad_adc <= index;
-                index <= calc_next_adc_index(index);
+                ad_adc <= reverse_index;
                 if (i == N - 1) begin
                     i <= 13'd0;
-                    state <= S_RAM_CONTROL + 8'd5;
+                    j <= 13'd0;
+                    state <= S_RAM_CONTROL + 8'd4;
                 end
                 else begin
                     i <= i + 1'd1;
+                    j <= j + 1'd1;
                 end
-                // NOTE: とりあえずdinはそのままの値を代入
-                // TODO: ここ直す
-                if (reverse_index > N2 - 1) begin
+
+                if (i > N2 - 1) begin
                     wre0 <= 1'd0;
                     wre1 <= 1'd1;
-                    // bit reverse
-                    ad1 <= reverse_index;
+                    ad1 <= i[9:0];
                     din1 <= calc_adc_din(dout_adc);
                 end
                 else begin
                     wre0 <= 1'd1;
-                    wre0 <= 1'd0;
-                    ad0 <= reverse_index;
+                    wre1 <= 1'd0;
+                    ad0 <= i[9:0];
                     din0 <= calc_adc_din(dout_adc);
                 end
             end
-            S_RAM_CONTROL + 8'd5: begin
+            S_RAM_CONTROL + 8'd4: begin
                 // RAMが終了するまでの時間つぶし
-                state <= S_RAM_CONTROL + 8'd6;
-            end
-            S_RAM_CONTROL + 8'd6: begin
                 wre0 <= 1'd0;
                 wre1 <= 1'd0;
+                state <= S_RAM_CONTROL + 8'd5;
+            end
+            S_RAM_CONTROL + 8'd5: begin
                 select_fft_ram <= SEL_FFT_RAM_FFT;
                 select_adc_ram <= SEL_ADC_RAM_ADC;
                 state <= S_FFT;
@@ -478,33 +456,40 @@ always @(posedge clk or negedge rst_n) begin
             S_FFT + 8'd1: begin
                 fft1024_start <= 1'd0;
                 if (fft1024_finish == 1'd1) begin
+                    fft1024_clear <= 1'd1;
                     select_fft_ram <= SEL_FFT_RAM_OFDM;
                     state <= S_OFDM;
                 end
             end
             S_OFDM: begin
+                fft1024_clear <= 1'd0;
                 ofdm_start <= 1'd1;
                 state <= S_OFDM + 8'd1;
             end
             S_OFDM + 8'd1: begin
                 ofdm_start <= 1'd0;
                 if (ofdm_finish == 1'd1) begin
-                    select_fft_ram <= SEL_FFT_RAM_DEMOD;
-                    if (ofdm_success == 1'd1) begin
-                        state <= S_TX_RES;
-                        tx_res_enable <= 1'd1;
-                        shift_cnt <= 4'd0;
+                    ofdm_clear <= 1'd1;
+                    state <= S_OFDM + 8'd2;
+                end
+            end
+            S_OFDM + 8'd2: begin
+                ofdm_clear <= 1'd0;
+                select_fft_ram <= SEL_FFT_RAM_DEMOD;
+                if (ofdm_success == 1'd1) begin
+                    state <= S_TX_RES;
+                    tx_res_enable <= 1'd1;
+                    shift_cnt <= 4'd0;
+                end
+                else begin
+                    // シフトしてやり直し
+                    if (shift_cnt != SHIFT_CNT - 1) begin
+                        state <= S_RAM_CONTROL;
+                        shift_cnt <= shift_cnt + 4'd1;
                     end
                     else begin
-                        // シフトしてやり直し
-                        if (shift_cnt != SHIFT_CNT - 1) begin
-                            state <= S_RAM_CONTROL;
-                            shift_cnt <= shift_cnt + 4'd1;
-                        end
-                        else begin
-                            state <= S_READ_ADC;
-                            shift_cnt <= 4'd0;
-                        end
+                        state <= S_READ_ADC;
+                        shift_cnt <= 4'd0;
                     end
                 end
             end
@@ -542,10 +527,12 @@ module demodulation
     // fft1024
     output fft1024_start,
     input fft1024_finish,
+    output fft1024_clear,
     // ofdm
     output ofdm_start,
     input ofdm_finish,
     input ofdm_success,
+    output ofdm_clear,
     input [95:0] ofdm_res,
     // BSRAM fft0
     input [31:0] dout0,
@@ -639,10 +626,12 @@ demodulation_other demodulation_other_instance(
     // fft1024
     fft1024_start,
     fft1024_finish,
+    fft1024_clear,
     // ofdm
     ofdm_start,
     ofdm_finish,
     ofdm_success,
+    ofdm_clear,
     // BSRAM fft0
     dout0,
     oce0,

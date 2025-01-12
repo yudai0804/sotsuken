@@ -4,6 +4,7 @@ module ofdm(
     input start,
     output reg finish,
     output reg success,
+    input clear,
     output reg [95:0] res,
     // BSRAM fft0
     // read onlyなので、dinとwreは使わないので削除
@@ -53,14 +54,16 @@ always @(posedge clk or negedge rst_n) begin
         state <= 3'd0;
     end
     else begin
+        if (clear == 1'd1 && state != 3'd4) begin
+            finish <= 1'd0;
+            success <= 1'd0;
+        end
         case (state)
             3'd0: begin
                 if (start == 1'd1) begin
                     oce0 <= 1'd1;
                     ce0 <= 1'd1;
                     ad0 <= {4'd0, INDEX_BEGIN};
-                    finish <= 1'd0;
-                    success <= 1'd0;
                     pilot_diff <= 16'd0;
                     i <= INDEX_BEGIN;
                     j <= 7'd0;
@@ -79,7 +82,6 @@ always @(posedge clk or negedge rst_n) begin
                         pilot_diff <= dout0_re - PILOT_AMPLITUDE;
                     end
                     PILOT4: begin
-                        success <= (res[7:0] == 8'h55 && res [95:88] == 8'h55) ? 1'd1 : 1'd0;
                         oce0 <= 1'd0;
                         ce0 <= 1'd0;
                         state <= 3'd3;
@@ -97,6 +99,7 @@ always @(posedge clk or negedge rst_n) begin
             3'd4: begin
                 state <= 3'd0;
                 finish <= 1'd1;
+                success <= (res[7:0] == 8'h55 && res [95:88] == 8'h55) ? 1'd1 : 1'd0;
             end
         endcase
     end

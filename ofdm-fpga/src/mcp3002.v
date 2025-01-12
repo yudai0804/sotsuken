@@ -60,8 +60,7 @@ always @(posedge clk or negedge rst_n) begin
             S_IDLE: begin
                 if(adc_enable == 1'd1) begin
                     state <= S_RUNNING;
-                    // enableになった瞬間に出力をするので、cycleは1にしておく。
-                    cycle <= 16'd1;
+                    cycle <= 16'd0;
                     clk_cnt <= 5'd0;
                     adc_clk <= 1'd0;
                     adc_cs <= 1'd0;
