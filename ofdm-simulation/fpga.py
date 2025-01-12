@@ -184,8 +184,8 @@ def run_demodulation(x: NDArray[np.float64]) -> NDArray[np.int32]:
     # 作業ディレクトリをもとの場所に移動
     os.chdir(start_dir)
 
-    x = np.array([-1] * 12, dtype=np.int32)
-    return x
+    X = np.array([-1] * 12, dtype=np.int32)
+    return X
 
 
 def output_butterfly_table() -> None:
