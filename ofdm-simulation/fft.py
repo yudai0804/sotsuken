@@ -13,6 +13,7 @@ from util_binary import (
     float_to_fixed_q15,
 )
 
+
 def dft(x: NDArray[np.complex128]) -> NDArray[np.complex128]:
     N = len(x)
     X = np.zeros(N, dtype=np.complex128)
