@@ -59,15 +59,7 @@ top
     adc_cs
 );
 // adc_doutの動作はPythonで自動生成
-testbench_adc_dout
-#(
-    CLK_FREQ,
-    CLK_FREQ_MHZ,
-    MCP3002_CLK_FREQ,
-    ADC_SAMPLING_FREQ
-)testbench_adc_dout_instance(
-    adc_dout
-);
+testbench_adc_dout testbench_adc_dout_instance(adc_cs, adc_clk, rst_n, adc_dout);
 
 // Generate clock
 initial begin

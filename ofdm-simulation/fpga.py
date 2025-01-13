@@ -109,22 +109,59 @@ def run_demodulation(
         "\n"
         f"// expected result: [0x{expected_X[0]:02X}, 0x{expected_X[1]:02X}, 0x{expected_X[2]:02X}, 0x{expected_X[3]:02X}, 0x{expected_X[4]:02X}, 0x{expected_X[5]:02X}, 0x{expected_X[6]:02X}, 0x{expected_X[7]:02X}, 0x{expected_X[8]:02X}, 0x{expected_X[9]:02X}, 0x{expected_X[10]:02X}, 0x{expected_X[11]:02X}]\n"
         "\n"
-        "module testbench_adc_dout\n"
-        "#(\n"
-        "    parameter CLK_FREQ = 48_000_000,\n"
-        "    parameter CLK_FREQ_MHZ = 48.0,\n"
-        "    parameter MCP3002_CLK_FREQ = 800_000,\n"
-        "    parameter ADC_SAMPLING_FREQ = 48_000\n"
-        ")(\n"
+        "module testbench_adc_dout(\n"
+        "    input adc_cs,\n"
+        "    input adc_clk,\n"
+        "    input rst_n,\n"
         "    output reg adc_dout\n"
         ");\n"
         "\n"
-        "localparam MCP3002_CYCLE = CLK_FREQ / MCP3002_CLK_FREQ;\n"
-        "localparam ADC_SAMPLING_CYCLE = CLK_FREQ / ADC_SAMPLING_FREQ;\n"
+        "reg [31:0] i;\n"
+        "reg [3:0] cnt;\n"
+        f"wire [{16 * len(x) - 1}:0] data;\n"
         "\n"
-        "initial begin\n"
-        "    #0 adc_dout = 0;\n"
+        "// adc_doutの処理\n"
+        "always @(negedge adc_cs or negedge adc_clk or negedge rst_n) begin\n"
+        "    if (!rst_n) begin\n"
+        "        adc_dout <= 1'd0;\n"
+        "        i <= 32'd0;\n"
+        "        // 最初にカウントが進んでしまうので、それ対策\n"
+        "        cnt <= 4'd15;\n"
+        "    end\n"
+        "    else begin\n"
+        "        if (cnt != 4'd14) begin\n"
+        "            cnt <= cnt + 1'd1;\n"
+        "        end\n"
+        "        if (adc_cs == 1'd0) begin\n"
+        "            cnt <= cnt + 1'd1;\n"
+        "            case (cnt)\n"
+        "                4'd0, 4'd1, 4'd2, 4'd3: adc_dout <= 1'd0;\n"
+        "                4'd4: adc_dout <= data[16 * i + 9];\n"
+        "                4'd5: adc_dout <= data[16 * i + 8];\n"
+        "                4'd6: adc_dout <= data[16 * i + 7];\n"
+        "                4'd7: adc_dout <= data[16 * i + 6];\n"
+        "                4'd8: adc_dout <= data[16 * i + 5];\n"
+        "                4'd9: adc_dout <= data[16 * i + 4];\n"
+        "                4'd10: adc_dout <= data[16 * i + 3];\n"
+        "                4'd11: adc_dout <= data[16 * i + 2];\n"
+        "                4'd12: adc_dout <= data[16 * i + 1];\n"
+        "                4'd13: adc_dout <= data[16 * i + 0];\n"
+        "                4'd14: begin\n"
+        "                    adc_dout <= 1'd0;\n"
+        "                    cnt <= 4'd0;\n"
+        f"                    if (i != {len(x)} - 1) begin\n"
+        "                        i <= i + 1'd1;\n"
+        "                    end\n"
+        "                end\n"
+        "            endcase\n"
+        "        end\n"
+        "    end\n"
+        "end\n"
+        "\n"
+        "// デバッグ情報\n"
     )
+
+    data = np.zeros(len(x), dtype=np.int32)
     for i in range(len(x)):
         _xq = float_to_fixed_q15(x[i])
         xq: int = 0
@@ -132,23 +169,14 @@ def run_demodulation(
             xq = 512 - ((~_xq + 1) & 0x1FF)
         else:
             xq = (_xq & 0x1FF) + 512
+        s += f"// i = {i}(0x{i:04X}), x / 4 = {x[i]}(fixed point: 0x{float_to_fixed_q15(x[i]):04X}), xq = {xq}(0x{xq:04X})\n"
+        data[i] = xq
 
-        s += f"    // i = {i}(0x{i:04X}), x / 4 = {x[i]}(fixed point: 0x{float_to_fixed_q15(x[i]):04X}), xq = {xq}(0x{xq:03X})\n"
-        # 9bit目
-        if i == 0:
-            s += f"    #((1 / CLK_FREQ_MHZ) * 1000 * (MCP3002_CYCLE * 5 + 1.5)) adc_dout = {(xq & 0x200) >> 9};\n"
-        else:
-            s += f"    #((1 / CLK_FREQ_MHZ) * 1000 * (ADC_SAMPLING_CYCLE - MCP3002_CYCLE * 10)) adc_dout = {(xq & 0x200) >> 9};\n"
-        # 8~0ビット目
-        for j in range(8, -1, -1):
-            s += f"    #((1 / CLK_FREQ_MHZ) * 1000 * MCP3002_CYCLE) adc_dout = {(xq & (1 << (j))) >> j};\n"
+    s += f"assign data = {len(x) * 16}'h"
+    for i in range(len(x) - 1, -1, -1):
+        s += f"{data[i]:04X}"
 
-        # 最後は1サイクル待機
-        s += f"    // 最後は1サイクル待機\n"
-        s += f"    #((1 / CLK_FREQ_MHZ) * 1000 * MCP3002_CYCLE) adc_dout = 0;\n"
-        s += "\n"
-
-    s += "end\n"
+    s += ";\n"
     s += "endmodule\n"
 
     # ofdm-fpgaディレクトリに移動
