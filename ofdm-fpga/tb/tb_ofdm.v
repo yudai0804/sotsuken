@@ -1,3 +1,5 @@
+// TODO: clearに対応しきれていないので、対応させる
+
 `timescale 1ns / 1ps
 
 module mux_sp_fft(
@@ -108,6 +110,8 @@ fft1024 fft1024_instance(
     rst_n,
     fft1024_start,
     fft1024_finish,
+    // TODO: 直す
+    1'd0,
     dout0,
     fft1024_oce0,
     fft1024_ce0,
@@ -137,6 +141,8 @@ ofdm ofdm_instance(
     ofdm_start,
     ofdm_finish,
     ofdm_success,
+    // TODO: 直す
+    1'd0,
     ofdm_res,
     dout0,
     ofdm_oce0,
