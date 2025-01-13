@@ -163,6 +163,7 @@ always @(posedge clk or negedge rst_n) begin
         cnt <= 13'd0;
     end
     else begin
+        // TODO: oceとceは使うときだけ、出力するようにする(muxがあるので...)
         // 常にoceとceは出力しておく
         oce_adc <= 1'd1;
         ce_adc <= 1'd1;
@@ -232,6 +233,7 @@ always @(posedge clk or negedge rst_n) begin
                 if (cnt == N - 1) begin
                     // N個分のデータが溜まっていた場合はavailableに
                     cnt <= 13'd0;
+                    integral <= 16'd0;
                     ram_control_available <= 1'd1;
                 end
             end
@@ -315,7 +317,7 @@ wire [13:0] _reverse_index;
 wire [12:0] reverse_index;
 
 // signal_detect_index - shift_cntが負の数になっても対応可能なようにN足しておく
-assign _reverse_index = 14'd8192 + signal_detect_index - shift_cnt + {4'd0, j[0], j[1], j[2], j[3], j[4], j[5], j[6], j[7], j[8], j[9]};
+assign _reverse_index = 14'd8192 + signal_detect_index - shift_cnt + {j[0], j[1], j[2], j[3], j[4], j[5], j[6], j[7], j[8], j[9]};
 assign reverse_index = _reverse_index[12:0];
 
 function [31:0] calc_adc_din;
@@ -428,13 +430,13 @@ always @(posedge clk or negedge rst_n) begin
                 if (i > N2 - 1) begin
                     wre0 <= 1'd0;
                     wre1 <= 1'd1;
-                    ad1 <= i[9:0];
+                    ad1 <= {2'd0, i[8:0]};
                     din1 <= calc_adc_din(dout_adc);
                 end
                 else begin
                     wre0 <= 1'd1;
                     wre1 <= 1'd0;
-                    ad0 <= i[9:0];
+                    ad0 <= {2'd0, i[8:0]};
                     din0 <= calc_adc_din(dout_adc);
                 end
             end
@@ -445,6 +447,10 @@ always @(posedge clk or negedge rst_n) begin
                 state <= S_RAM_CONTROL + 8'd5;
             end
             S_RAM_CONTROL + 8'd5: begin
+                // RAMが終了するまでの時間つぶし
+                state <= S_RAM_CONTROL + 8'd6;
+            end
+            S_RAM_CONTROL + 8'd6: begin
                 select_fft_ram <= SEL_FFT_RAM_FFT;
                 select_adc_ram <= SEL_ADC_RAM_ADC;
                 state <= S_FFT;

@@ -100,21 +100,6 @@ def run_ofdm(_x: NDArray[np.complex128]) -> NDArray[np.int32]:
     return ofdm_res
 
 
-# TODO: 気が向いたかつ時間があれば、quantization10のtest書く
-def quantization10(x: float, max_abs: float) -> int:
-    # オペアンプの加算回路を使って、正負にふれる正弦波を正の値のみに変換する動作
-    x += max_abs
-    # 量子化
-    res: int = 0
-    val = max_abs
-    for i in range(10):
-        if x >= val:
-            res += 1 << (9 - i)
-            x -= val
-        val /= 2
-    return res
-
-
 def run_demodulation(
     x: NDArray[np.float64], expected_X: NDArray[np.int32]
 ) -> NDArray[np.int32]:
@@ -122,7 +107,7 @@ def run_demodulation(
     s = (
         "`timescale 1ns / 1ps\n"
         "\n"
-        f"// expected result: [{expected_X[0]}, {expected_X[1]}, {expected_X[2]}, {expected_X[3]}, {expected_X[4]}, {expected_X[5]}, {expected_X[6]}, {expected_X[7]}, {expected_X[8]}, {expected_X[9]}, {expected_X[10]}, {expected_X[11]}]\n"
+        f"// expected result: [0x{expected_X[0]:02X}, 0x{expected_X[1]:02X}, 0x{expected_X[2]:02X}, 0x{expected_X[3]:02X}, 0x{expected_X[4]:02X}, 0x{expected_X[5]:02X}, 0x{expected_X[6]:02X}, 0x{expected_X[7]:02X}, 0x{expected_X[8]:02X}, 0x{expected_X[9]:02X}, 0x{expected_X[10]:02X}, 0x{expected_X[11]:02X}]\n"
         "\n"
         "module testbench_adc_dout\n"
         "#(\n"
@@ -141,10 +126,14 @@ def run_demodulation(
         "    #0 adc_dout = 0;\n"
     )
     for i in range(len(x)):
-        # 4で割る理由はFPGAは固定小数点数なので、FFTの結果が1を超えるとオーバーフローしてしまうため。
-        # 4で割らない場合、パイロット信号の振幅が2なのでオーバーフローしてしまう。(2/4=0.5なので、4で割れば大丈夫)
-        xq = quantization10(x[i] / 4, 0.05 / 4)
-        s += f"    // i = {i}, x / 4 = {x[i] / 4}, xq = {xq}\n"
+        _xq = float_to_fixed_q15(x[i])
+        xq: int = 0
+        if _xq & 0x200:
+            xq = 512 - ((~_xq + 1) & 0x1FF)
+        else:
+            xq = (_xq & 0x1FF) + 512
+
+        s += f"    // i = {i}(0x{i:04X}), x / 4 = {x[i]}(fixed point: 0x{float_to_fixed_q15(x[i]):04X}), xq = {xq}(0x{xq:03X})\n"
         # 9bit目
         if i == 0:
             s += f"    #((1 / CLK_FREQ_MHZ) * 1000 * (MCP3002_CYCLE * 5 + 1.5)) adc_dout = {(xq & 0x200) >> 9};\n"
