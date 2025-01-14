@@ -1,5 +1,77 @@
 // 固定小数点のフォーマットはq1.15
 // TODO: アルゴリズムを一度ドキュメントにまとめる
+
+module fft1024_twindle_factor_index
+(
+    input [9:0] i,
+    output [23:0] res
+);
+
+// localparam N4 = N / 4;
+// localparam N4_2 = N4 * 2;
+// localparam N4_3 = N4 * 3;
+localparam N = 11'd1024;
+localparam N4 = 11'd256;
+localparam N4_2 = 11'd512;
+localparam N4_3 = 11'd768;
+
+function [23:0] calc;
+    // calc = {w_re_sign, i_re, w_im_sign, i_im};
+    // fft1024ではN=4096の回転因子を使用するため4倍する
+    input [9:0] i;
+    reg [10:0] _ad_re;
+    reg [10:0] _ad_im;
+    reg [10:0] ad_re;
+    reg [10:0] ad_im;
+    reg sign_re;
+    reg sign_im;
+
+    if (0 <= i && i <= N4) begin
+        // 第4象限
+        _ad_re = N4 - i;
+        _ad_im = i;
+        ad_re = _ad_re << 2;
+        ad_im = _ad_im << 2;
+        sign_re = 1'd0;
+        sign_im = 1'd1;
+        calc = {sign_re, ad_re, sign_im, ad_im};
+    end
+    else if(N4 < i && i <= N4_2) begin
+        // 第3象限
+        _ad_re = i - N4;
+        _ad_im = N4_2 - i;
+        ad_re = _ad_re << 2;
+        ad_im = _ad_im << 2;
+        sign_re = 1'd1;
+        sign_im = 1'd1;
+        calc = {sign_re, ad_re, sign_im, ad_im};
+    end
+    else if(N4_2 < i && i <= N4_3) begin
+        // 第2象限
+        _ad_re = N4_3 - i;
+        _ad_im = i - N4_2;
+        ad_re = _ad_re << 2;
+        ad_im = _ad_im << 2;
+        sign_re = 1'd1;
+        sign_im = 1'd0;
+        calc = {sign_re, ad_re, sign_im, ad_im};
+    end
+    else begin
+        // 第1象限
+        _ad_re = i - N4_3;
+        _ad_im = i & (N4 - i);
+        ad_re = _ad_re << 2;
+        ad_im = _ad_im << 2;
+        sign_re = 1'd0;
+        sign_im = 1'd0;
+        calc = {sign_re, ad_re, sign_im, ad_im};
+    end
+endfunction
+
+assign res = calc(i);
+
+endmodule
+
 module fft1024
 (
     input clk,
@@ -109,12 +181,9 @@ butterfly butterfly1
     butterfly1_res[15:0]
 );
 
-fft_twindle_factor_index#
+fft1024_twindle_factor_index fft_twindle_factor_index_instance
 (
-    1024
-)fft_twindle_factor_index_instance(
     i,
-    1'd1,
     fft_twindle_factor_index_res
 );
 
@@ -233,7 +302,11 @@ always @(posedge clk or negedge rst_n) begin
                         // x2
                         ad1 <= {1'd0, k + j};
                         // 回転因子のインデックスと符号を計算
-                        {w_re_sign, ad_w, w_im_sign, prom_i_im} <= fft_twindle_factor_index_res;
+                        // {w_re_sign, ad_w, w_im_sign, prom_i_im} <= fft_twindle_factor_index_res;
+                        w_re_sign <= fft_twindle_factor_index_res[23];
+                        ad_w <= fft_twindle_factor_index_res[22:12];
+                        w_im_sign <= fft_twindle_factor_index_res[11];
+                        prom_i_im <= fft_twindle_factor_index_res[10:0];
                         clk_cnt <= 3'd1;
                     end
                     3'd1: begin
@@ -345,7 +418,11 @@ always @(posedge clk or negedge rst_n) begin
                         // x0
                         ad0 <= {1'd0, j};
                         // 回転因子のインデックスと符号を計算
-                        {w_re_sign, ad_w, w_im_sign, prom_i_im} <= fft_twindle_factor_index_res;
+                        // {w_re_sign, ad_w, w_im_sign, prom_i_im} <= fft_twindle_factor_index_res;
+                        w_re_sign <= fft_twindle_factor_index_res[23];
+                        ad_w <= fft_twindle_factor_index_res[22:12];
+                        w_im_sign <= fft_twindle_factor_index_res[11];
+                        prom_i_im <= fft_twindle_factor_index_res[10:0];
                         clk_cnt <= 3'd1;
                     end
                     3'd1: begin
