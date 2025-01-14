@@ -16,20 +16,20 @@ module ofdm(
 // サブキャリアの範囲は1000~6000Hz
 // サブキャリア間隔は50Hz
 // 1000Hz
-localparam PILOT0 = 7'd20;
+localparam PILOT0 = 7'd21;
 // 1050Hz
-localparam PILOT1 = 7'd21;
+localparam PILOT1 = 7'd22;
 // 2700Hz
-localparam PILOT2 = 7'd54;
+localparam PILOT2 = 7'd55;
 // 4350Hz
-localparam PILOT3 = 7'd87;
+localparam PILOT3 = 7'd88;
 // 6000Hz
-localparam PILOT4 = 7'd120;
+localparam PILOT4 = 7'd121;
 
 // 16384 = 0x4000 = 0.5
 localparam PILOT_AMPLITUDE = 16'h4000;
 
-localparam INDEX_BEGIN = 7'd20;
+localparam INDEX_BEGIN = 7'd21;
 
 reg [15:0] pilot_diff;
 reg [6:0] i;

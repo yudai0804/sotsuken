@@ -37,7 +37,7 @@ SIGNAL_AMPLITUDE: float = 0.25
 # パイロット信号の位相[rad]
 PILOT_SIGNAL_PHASE: float = 0
 
-SAMPLING_FREQUENCY: int = 51200
+SAMPLING_FREQUENCY: int = 48000
 
 # ローパスフィルタのカットオフ周波数
 CUTOFF_FREQUENCY: int = int(1e4)
@@ -156,6 +156,7 @@ class Modulation:
         return self.calculate(X, True)
 
 
+# TODO: 気が向いたら量子化を行わないバージョンも作る
 class Demodulation:
     def __init__(self) -> None:
         self.__is_success: bool = False
@@ -446,7 +447,6 @@ class Synchronization:
     def __search_data(self, res: Result) -> None:
         last_detect: int = -1
         for i in range(len(res.R)):
-            print(i, res.R[i])
             if res.R[i].real > self.CORRELATE_THRESHOLD:
                 if last_detect == -1 and self.__is_detected(res.index[i]) == False:
                     res.signal_index = np.append(res.signal_index, res.index[i])

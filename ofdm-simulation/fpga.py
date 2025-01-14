@@ -30,7 +30,7 @@ def run_fft1024(_x: NDArray[np.complex128]) -> NDArray[np.complex128]:
     # 実行
     # 本当は良くないけど、mypyがうまく動かないので、Any型でごまかす
     result: Any = subprocess.run(
-        "iverilog -o testbench tb/tb_fft1024.v src/fft1024.v src/butterfly.v src/fft_twindle_factor_index.v src/gowin/gowin_prom_w.v src/gowin/gowin_sp_fft0.v src/gowin/gowin_sp_fft1.v src/gowin/prim_sim.v -I tmp -DSIMULATOR",
+        "iverilog -o testbench tb/tb_fft1024.v src/fft1024.v src/butterfly.v src/gowin/gowin_prom_w.v src/gowin/gowin_sp_fft0.v src/gowin/gowin_sp_fft1.v src/gowin/prim_sim.v -I tmp -DSIMULATOR",
         shell=True,
     )
     assert result.returncode == 0, "[Verilog] Bulid failed"
@@ -71,7 +71,7 @@ def run_ofdm(_x: NDArray[np.complex128]) -> NDArray[np.int32]:
     # 実行
     # 本当は良くないけど、mypyがうまく動かないので、Any型でごまかす
     result: Any = subprocess.run(
-        "iverilog -o testbench tb/tb_ofdm.v src/ofdm.v src/fft1024.v src/butterfly.v src/fft_twindle_factor_index.v src/gowin/gowin_prom_w.v src/gowin/gowin_sp_fft0.v src/gowin/gowin_sp_fft1.v src/gowin/prim_sim.v -I tmp -DSIMULATOR",
+        "iverilog -o testbench tb/tb_ofdm.v src/ofdm.v src/fft1024.v src/butterfly.v src/gowin/gowin_prom_w.v src/gowin/gowin_sp_fft0.v src/gowin/gowin_sp_fft1.v src/gowin/prim_sim.v -I tmp -DSIMULATOR",
         shell=True,
     )
     assert result.returncode == 0, "[Verilog] Bulid failed"
@@ -189,7 +189,8 @@ def run_demodulation(
         print(s, file=file)
 
     command: str = (
-        "iverilog -o testbench src/top.v"
+        "iverilog -o testbench tb/tb_top.v"
+        " src/top.v"
         " src/gowin/gowin_prom_w.v"
         " src/gowin/gowin_sp_adc.v"
         " src/gowin/gowin_sp_fft0.v"
@@ -197,30 +198,39 @@ def run_demodulation(
         " src/gowin/prim_sim.v"
         " src/butterfly.v"
         " src/demodulation.v"
-        " src/fft_twindle_factor_index.v"
         " src/fft1024.v"
         " src/led.v"
         " src/mcp3002.v"
         " src/ofdm.v"
         " src/uart_rx.v"
         " src/uart_tx.v"
-        " -I tmp"
-        " -DSIMULATOR"
+        " tmp/testbench_adc_dout.v"
+        " -DFAST_SIMULATION"
+        " -DDEMOD_SIMULATION"
     )
     result: Any = subprocess.run(
         command,
         shell=True,
     )
     assert result.returncode == 0, "[Verilog] Bulid failed"
-    # result = subprocess.run("vvp testbench", shell=True, capture_output=True, text=True)
-    # assert result.returncode == 0, "[Verilog] error"
+    result = subprocess.run("vvp testbench", shell=True, capture_output=True, text=True)
+    assert result.returncode == 0, "[Verilog] error"
+    print("finish")
     # Assertで落ちていないかチェック
-    # assert ("ASSERTION FAILED" in result.stdout) == 0, "[Verilog] Assertion error"
+    assert ("ASSERTION FAILED" in result.stdout) == 0, "[Verilog] Assertion error"
+    # print(result.stdout)
+    list_data = result.stdout.split("\n")
+    # VCD info: dumpfile testbench.vcd opened for output.
+    # と最後に改行があるので、全部で14
+    assert len(list_data) == 14, "Failed"
+    ofdm_res = np.zeros(12, dtype=np.int32)
+    for i in range(12):
+        assert list_data[i + 1].replace(" ", "").isdigit() == True
+        ofdm_res[i] = int(list_data[i + 1].replace(" ", ""))
     # 作業ディレクトリをもとの場所に移動
     os.chdir(start_dir)
 
-    X = np.array([-1] * 12, dtype=np.int32)
-    return X
+    return ofdm_res
 
 
 def output_butterfly_table() -> None:

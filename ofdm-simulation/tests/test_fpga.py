@@ -118,7 +118,6 @@ def test_top_build() -> None:
         " src/gowin/prim_sim.v"
         " src/butterfly.v"
         " src/demodulation.v"
-        " src/fft_twindle_factor_index.v"
         " src/fft1024.v"
         " src/led.v"
         " src/mcp3002.v"

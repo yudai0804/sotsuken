@@ -22,9 +22,8 @@ def simulator_single_symbol() -> None:
         original_data=original_data, is_no_carrier=True
     )
     x = np.zeros(N, dtype=np.complex128)
-    # このままFFTすると値が1を超えてうまく行かないので、4で割る
     for i in range(N):
-        x[i] = fixed_q15_quantization(mod_res.ifft_x[i] / 4)
+        x[i] = fixed_q15_quantization(mod_res.ifft_x[i])
     fpga_res = run_ofdm(x)
     npt.assert_equal(original_data, fpga_res)
 
@@ -46,7 +45,7 @@ def simulator_demodulation() -> None:
     )
     x = np.zeros(BUFF_SIZE, dtype=np.float64)
     delay: int = 10
-    # このままFFTすると値が1を超えてうまく行かないので、4で割る
     for i in range(N):
-        x[i + delay] = fixed_q15_quantization(mod_res.ifft_x[i] / 4)
-    run_demodulation(x, original_data)
+        x[i + delay] = fixed_q15_quantization(mod_res.ifft_x[i])
+    fpga_res = run_demodulation(x, original_data)
+    npt.assert_equal(original_data, fpga_res)
