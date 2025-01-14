@@ -24,6 +24,8 @@ fpga_parser.add_argument(
     ],
 )
 
+run_parser = subparsers.add_parser("run", formatter_class=RawFormatter)
+
 sim_parser = subparsers.add_parser("sim", formatter_class=RawFormatter)
 sim_parser.add_argument("sim_mode", choices=["single", "multi"])
 sim_parser.add_argument("value", nargs="?", type=int)
@@ -65,3 +67,7 @@ elif args.command == "fpga":
         output_fft1024()
     elif args.fpga_mode == "read-fft1024":
         read_fft1024()
+elif args.command == "run":
+    from run import *
+
+    run()
