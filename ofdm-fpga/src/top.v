@@ -69,7 +69,8 @@ module top
 localparam UART_CYCLE = CLK_FREQ / UART_BOUD_RATE;
 localparam UART_CYCLE_10 = UART_CYCLE * 10;
 localparam MCP3002_CYCLE = CLK_FREQ / MCP3002_CLK_FREQ;
-
+// ==========pll==========
+wire clk_pll;
 // ==========uart_tx==========
 wire uart_tx_start;
 wire [7:0] uart_tx_data;
@@ -166,12 +167,18 @@ assign led = ~led_reg;
 reg [7:0] state;
 reg [15:0] cycle;
 
+Gowin_rPLL gowin_rpll_instance
+(
+    clk_pll,
+    clk
+);
+
 uart_tx#
 (
     CLK_FREQ,
     UART_BOUD_RATE
 )uart_tx_instance(
-    clk,
+    clk_pll,
     rst_n,
     uart_tx_start,
     uart_tx_data,
@@ -199,7 +206,7 @@ mcp3002#
     CLK_FREQ,
     MCP3002_CLK_FREQ
 )mcp3002_instance(
-    clk,
+    clk_pll,
     rst_n,
     adc_clk,
     adc_din,
@@ -224,7 +231,7 @@ led#
 
 Gowin_SP_fft0 gowin_sp_fft0_instance(
     sp_fft0_dout,
-    clk,
+    clk_pll,
     sp_fft0_oce,
     sp_fft0_ce,
     ~rst_n,
@@ -235,7 +242,7 @@ Gowin_SP_fft0 gowin_sp_fft0_instance(
 
 Gowin_SP_fft1 gowin_sp_fft1_instance(
     sp_fft1_dout,
-    clk,
+    clk_pll,
     sp_fft1_oce,
     sp_fft1_ce,
     ~rst_n,
@@ -246,7 +253,7 @@ Gowin_SP_fft1 gowin_sp_fft1_instance(
 
 Gowin_pROM_w gowin_prom_w_instance(
     prom_w_dout,
-    clk,
+    clk_pll,
     prom_w_oce,
     prom_w_ce,
     ~rst_n,
@@ -255,7 +262,7 @@ Gowin_pROM_w gowin_prom_w_instance(
 
 Gowin_SP_adc gowin_sp_adc_instance(
     sp_adc_dout,
-    clk,
+    clk_pll,
     sp_adc_oce,
     sp_adc_ce,
     ~rst_n,
@@ -265,7 +272,7 @@ Gowin_SP_adc gowin_sp_adc_instance(
 );
 
 fft1024 fft1024_instance(
-    clk,
+    clk_pll,
     rst_n,
     fft1024_start,
     fft1024_finish,
@@ -289,7 +296,7 @@ fft1024 fft1024_instance(
 );
 
 ofdm ofdm_instance(
-    clk,
+    clk_pll,
     rst_n,
     ofdm_start,
     ofdm_finish,
@@ -308,7 +315,7 @@ demodulation
     MCP3002_CLK_FREQ,
     ADC_SAMPLING_FREQ
 )demodulation_instance(
-    clk,
+    clk_pll,
     rst_n,
     select_fft_ram,
     uart_tx_start,

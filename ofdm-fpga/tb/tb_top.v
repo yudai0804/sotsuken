@@ -66,7 +66,7 @@ initial begin
     clk = 0;
 end
 always begin
-    #(((1 / CLK_FREQ_MHZ) / 2.0) * 1000) clk = ~clk;
+    #(((1 / 27.0) / 2.0) * 1000) clk = ~clk;
 end
 
 initial begin

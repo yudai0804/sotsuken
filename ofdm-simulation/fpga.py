@@ -192,6 +192,7 @@ def run_demodulation(
         "iverilog -o testbench tb/tb_top.v"
         " src/top.v"
         " src/gowin/gowin_prom_w.v"
+        " src/gowin/gowin_rpll.v"
         " src/gowin/gowin_sp_adc.v"
         " src/gowin/gowin_sp_fft0.v"
         " src/gowin/gowin_sp_fft1.v"
