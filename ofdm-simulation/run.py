@@ -9,10 +9,15 @@ from util_binary import fixed_q15_quantization
 
 def simulator_single_symbol() -> None:
     N: int = 1024
-    original_data = np.concatenate(
-        ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55]),
+    # original_data = np.concatenate(
+    #     ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55]),
+    #     dtype=np.int32,
+    # )
+    original_data = np.array(
+        [0x55, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x55],
         dtype=np.int32,
     )
+    # TODO: デバッグ終わったらもとに戻す
     mod_res, demod_res, _ = single_symbol(
         original_data=original_data, is_no_carrier=True
     )
@@ -26,7 +31,8 @@ def simulator_single_symbol() -> None:
 
 def simulator_demodulation() -> None:
     N: int = 1024
-    BUFF_SIZE = 8192
+    # BUFF_SIZE = 8192
+    BUFF_SIZE = 1100
     # original_data = np.concatenate(
     # ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55]),
     # dtype=np.int32,

@@ -16,7 +16,7 @@ module demodulation_tx_res(
     input [95:0] ofdm_res
 );
 
-reg [1:0] state;
+reg [2:0] state;
 reg [3:0] index;
 
 // OFDMが成功したときはUARTを送信
@@ -26,7 +26,7 @@ always @(posedge clk or negedge rst_n) begin
         uart_tx_start <= 1'd0;
         index <= 4'd0;
         // 適当な初期値を設定(この初期値が使われることはない)
-        state <= 2'd0;
+        state <= 3'd0;
     end
     else begin
         if (tx_res_enable == 1'd1) begin
@@ -34,13 +34,30 @@ always @(posedge clk or negedge rst_n) begin
                 // STOPビットの時間も正確に連続で送信するのは面倒なので、
                 // finishがちゃんと立ち上がったのを確認してから次のデータを送信するようにする。
                 // なので、STOPビットが1サイクルだけ長い
-                2'd0: begin
+                3'd0: begin
                     index <= 4'd1;
                     uart_tx_start <= 1'd1;
                     uart_tx_data <= ofdm_res[7:0];
-                    state <= 2'd1;
+                    state <= 3'd1;
+                    `ifdef DEMOD_SIMULATION
+                    $display("%d", ofdm_res[7:0]);
+                    $display("%d", ofdm_res[15:8]);
+                    $display("%d", ofdm_res[23:16]);
+                    $display("%d", ofdm_res[31:24]);
+                    $display("%d", ofdm_res[39:32]);
+                    $display("%d", ofdm_res[47:40]);
+                    $display("%d", ofdm_res[55:48]);
+                    $display("%d", ofdm_res[63:56]);
+                    $display("%d", ofdm_res[71:64]);
+                    $display("%d", ofdm_res[79:72]);
+                    $display("%d", ofdm_res[87:80]);
+                    $display("%d", ofdm_res[95:88]);
+                    `endif
                 end
-                2'd1: begin
+                3'd1: begin
+                    state <= 3'd2;
+                end
+                3'd2: begin
                     if (uart_tx_finish == 1'd1) begin
                         uart_tx_start <= 1'd1;
                         case (index)
@@ -57,9 +74,10 @@ always @(posedge clk or negedge rst_n) begin
                             4'd11: uart_tx_data <= ofdm_res[95:88];
                         endcase
                         if (index == 4'd11) begin
-                            state <= 2'd2;
+                            state <= 3'd4;
                         end
                         else begin
+                            state <= 3'd3;
                             index <= index + 1'd1;
                         end
                     end
@@ -67,7 +85,10 @@ always @(posedge clk or negedge rst_n) begin
                         uart_tx_start <= 1'd0;
                     end
                 end
-                2'd2: begin
+                3'd3: begin
+                    state <= 3'd2;
+                end
+                3'd4: begin
                     uart_tx_start <= 1'd0;
                     if (uart_tx_finish == 1'd1) begin
                         tx_res_clear_enable <= 1'd1;
@@ -78,7 +99,7 @@ always @(posedge clk or negedge rst_n) begin
         else begin
             // enable == 0のとき
             tx_res_clear_enable <= 1'd0;
-            state <= 2'd0;
+            state <= 3'd0;
             index <= 4'd0;
         end
     end
