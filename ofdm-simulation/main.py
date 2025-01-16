@@ -20,6 +20,7 @@ fpga_parser.add_argument(
         "butterfly-table",
         "twinddle-factor",
         "output-fft1024",
+        "output-ofdm-spectrum",
         "read-fft1024",
     ],
 )
@@ -65,6 +66,8 @@ elif args.command == "fpga":
         output_twinddle_factor()
     elif args.fpga_mode == "output-fft1024":
         output_fft1024()
+    elif args.fpga_mode == "output-ofdm-spectrum":
+        output_ofdm_spectrum()
     elif args.fpga_mode == "read-fft1024":
         read_fft1024()
 elif args.command == "run":

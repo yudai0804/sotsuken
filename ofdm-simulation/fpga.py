@@ -387,3 +387,44 @@ def read_fft1024() -> None:
     X = read_fft(1024)
     for i in range(len(X)):
         print(X[i])
+
+
+def output_ofdm_spectrum() -> None:
+    """
+    OFDM実験用にFFTした結果を格納したデータを作る
+    """
+    # fpga.pyではシミュレーション(ofdm.py)と疎結合にするために、ofdm.pyをimportしないようにいているが
+    # この関数の中では例外的にofdm.pyをimportする
+    N: int = 1024
+    from ofdm import SUBCARRIER_FREQUENCY_MAX_INDEX, single_symbol
+
+    original_data = np.array(
+        [0x55, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x55],
+        dtype=np.int32,
+    )
+    mod_res, demod_res, _ = single_symbol(
+        original_data=original_data, is_no_carrier=True
+    )
+    # output
+    s = ""
+    s += f"// fft0 output-ofdm-spectrum\n"
+    s += f"// expected: [{original_data[0]}, {original_data[1]}, {original_data[2]}, {original_data[3]}, {original_data[4]}, {original_data[5]}, {original_data[6]}, {original_data[7]}, {original_data[8]}, {original_data[9]}, {original_data[10]}, {original_data[11]}]\n"
+    for sp_cnt in range(4):
+        for i in range(64):
+            s += f"defparam sp_inst_{sp_cnt:1d}.INIT_RAM_{(i):02X} = 256'h"
+            for j in range(32):
+                index = 32 * i + 31 - j
+                if index <= SUBCARRIER_FREQUENCY_MAX_INDEX:
+                    if sp_cnt == 0:
+                        s += "00"
+                    elif sp_cnt == 1:
+                        s += "00"
+                    elif sp_cnt == 2:
+                        s += f"{float_to_fixed_q15(demod_res.X[index]) & 0xff:02X}"
+                    else:
+                        s += f"{float_to_fixed_q15(demod_res.X[index]) >> 8:02X}"
+                else:
+                    s += "00"
+            s += ";\n"
+    print(s)
+    return s
