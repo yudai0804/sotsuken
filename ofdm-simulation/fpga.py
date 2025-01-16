@@ -427,4 +427,3 @@ def output_ofdm_spectrum() -> None:
                     s += "00"
             s += ";\n"
     print(s)
-    return s
