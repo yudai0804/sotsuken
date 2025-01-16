@@ -146,6 +146,13 @@ wire [23:0] fft_twindle_factor_index_res;
 
 assign butterfly_dout0 = (state == S_BUTTERFLY1) ? dout1 : dout0;
 
+fft1024_twindle_factor_index fft_twindle_factor_index_instance
+(
+    i,
+    fft_twindle_factor_index_res
+);
+
+
 butterfly butterfly0
 (
     x0_re,
@@ -181,12 +188,6 @@ butterfly butterfly1
     butterfly1_res[15:0]
 );
 
-fft1024_twindle_factor_index fft_twindle_factor_index_instance
-(
-    i,
-    fft_twindle_factor_index_res
-);
-
 // debug
 `ifdef SIMULATOR
 reg [15:0] debug_read_x0_re;
@@ -211,12 +212,26 @@ reg [15:0] debug_w_im;
 
 always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
+        finish <= 1'd0;
+        oce0 <= 1'd0;
+        ce0 <= 1'd0;
+        wre0 <= 1'd0;
+        ad0 <= 11'd0;
+        din0 <= 32'd0;
+        oce1 <= 1'd0;
+        ce1 <= 1'd0;
+        wre1 <= 1'd0;
+        ad1 <= 11'd0;
+        din1 <= 32'd0;
+        oce_w <= 1'd0;
+        ce_w <= 1'd0;
+        ad_w <= 11'd0;
+
         w_re <= 16'd0;
         x0_re <= 16'd0;
         x0_im <= 16'd0;
         x1_re <= 16'd0;
         x1_im <= 16'd0;
-
         step <= 10'd0;
         half_step <= 10'd0;
         index <= 10'd0;
@@ -228,11 +243,29 @@ always @(posedge clk or negedge rst_n) begin
         w_im_sign <= 1'd0;
         x_index <= 10'd0;
         x_half_step_index <= 10'd0;
-
         state <= S_IDLE;
         next_state <= S_IDLE;
         clk_cnt <= 3'd0;
-        finish <= 1'd0;
+        `ifdef SIMULATOR
+        debug_read_x0_re <= 16'd0;
+        debug_read_x0_im <= 16'd0;
+        debug_read_x1_re <= 16'd0;
+        debug_read_x1_im <= 16'd0;
+        debug_read_x2_re <= 16'd0;
+        debug_read_x2_im <= 16'd0;
+        debug_read_x3_re <= 16'd0;
+        debug_read_x3_im <= 16'd0;
+        debug_res_x0_re <= 16'd0;
+        debug_res_x0_im <= 16'd0;
+        debug_res_x1_re <= 16'd0;
+        debug_res_x1_im <= 16'd0;
+        debug_res_x2_re <= 16'd0;
+        debug_res_x2_im <= 16'd0;
+        debug_res_x3_re <= 16'd0;
+        debug_res_x3_im <= 16'd0;
+        debug_w_re <= 16'd0;
+        debug_w_im <= 16'd0;
+        `endif
     end
     else begin
         if (clear == 1'd1 && state != S_FINISH) begin
@@ -243,7 +276,6 @@ always @(posedge clk or negedge rst_n) begin
                 if (start == 1'd1) begin
                     ce_w <= 1'd1;
                     oce_w <= 1'd1;
-                    ad_w <= 11'd0;
                     // 他のSRAMもいつでも使用可能にしておく
                     ce0 <= 1'd1;
                     oce0 <= 1'd1;
@@ -254,10 +286,6 @@ always @(posedge clk or negedge rst_n) begin
                     wre1 <= 1'd0;
                     ad1 <= 11'd0;
 
-                    prom_i_im <= 11'd0;
-                    w_re_sign <= 1'd0;
-                    w_im_sign <= 1'd1;
-
                     half_step <= 10'd1;
                     step <= 10'd2;
                     index <= N2;
@@ -267,6 +295,11 @@ always @(posedge clk or negedge rst_n) begin
                     state <= S_BUTTERFLY2;
                     next_state <= S_BUTTERFLY2;
                     clk_cnt <= 3'd0;
+
+                    w_re_sign <= fft_twindle_factor_index_res[23];
+                    ad_w <= fft_twindle_factor_index_res[22:12];
+                    w_im_sign <= fft_twindle_factor_index_res[11];
+                    prom_i_im <= fft_twindle_factor_index_res[10:0];
                 end
             end
             // step <= N / 2のときは2つのバタフライ演算器を用いて計算
@@ -504,6 +537,8 @@ always @(posedge clk or negedge rst_n) begin
                         wre1 <= 1'd0;
                         ad1 <= 11'd0;
                         clk_cnt <= 3'd1;
+                        // twindle indexの関係で、iは0に戻しておく
+                        i <= 10'd0;
                     end
                     3'd1: begin
                         finish <= 1'd1;

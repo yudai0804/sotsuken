@@ -48,6 +48,9 @@ always @(posedge clk or negedge rst_n) begin
         finish <= 1'd0;
         success <= 1'd0;
         res <= 96'd0;
+        oce0 <= 1'd0;
+        ce0 <= 1'd0;
+        ad0 <= 11'd0;
         pilot_diff <= 16'd0;
         i <= INDEX_BEGIN;
         j <= 7'd0;
