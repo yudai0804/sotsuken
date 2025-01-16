@@ -161,7 +161,7 @@ end
 reg [3:0] state;
 
 always @(posedge clk or negedge rst_n) begin
-    if(!rst_n) begin
+    if (!rst_n) begin
         state <= 4'd0;
         fft1024_start <= 1'd0;
         s <= 1'd1;
