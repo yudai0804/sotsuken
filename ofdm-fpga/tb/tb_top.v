@@ -1,4 +1,3 @@
-// TODO: 次はADCのクロックがおかしいのの原因究明から
 // topのテストベンチだけど、demodulationのテストベンチも兼ねてる
 
 `timescale 1ns / 1ps
@@ -14,26 +13,30 @@ wire adc_clk;
 wire adc_din;
 wire adc_dout;
 wire adc_cs;
+wire clk_pll;
+wire rst_n_pll;
 
-// 48MHz
-localparam CLK_FREQ = 48_000_000;
-localparam CLK_FREQ_MHZ = 48.0;
-
-`ifdef FAST_SIMULATION
-// 1MHz
-localparam UART_BOUD_RATE = 1_000_000;
-// 12MHz
-localparam MCP3002_CLK_FREQ = 12_000_000;
-// 600kHz
-localparam ADC_SAMPLING_FREQ = 600_000;
-`else
+// `ifdef FAST_SIMULATION
+// // 48MHz
+// localparam CLK_FREQ = 48_000_000;
+// localparam CLK_FREQ_MHZ = 48.0;
+// // 1MHz
+// localparam UART_BOUD_RATE = 1_000_000;
+// // 12MHz
+// localparam MCP3002_CLK_FREQ = 12_000_000;
+// // 600kHz
+// localparam ADC_SAMPLING_FREQ = 600_000;
+// `else
+// 24MHz
+localparam CLK_FREQ = 24_000_000;
+localparam CLK_FREQ_MHZ = 24.0;
 // 9600bps
 localparam UART_BOUD_RATE = 9600;
 // 0.8MHz
 localparam MCP3002_CLK_FREQ = 800_000;
 // 48kHz
 localparam ADC_SAMPLING_FREQ = 48_000;
-`endif
+// `endif
 localparam ADC_SAMPLING_CYCLE = CLK_FREQ / ADC_SAMPLING_FREQ;
 
 localparam UART_CYCLE = CLK_FREQ / UART_BOUD_RATE;
@@ -56,10 +59,12 @@ top
     adc_clk,
     adc_din,
     adc_dout,
-    adc_cs
+    adc_cs,
+    clk_pll,
+    rst_n_pll
 );
 // adc_doutの動作はPythonで自動生成
-testbench_adc_dout testbench_adc_dout_instance(adc_cs, adc_clk, rst_n, adc_dout);
+testbench_adc_dout testbench_adc_dout_instance(adc_cs, adc_clk, rst_n_pll, adc_dout);
 
 // Generate clock
 initial begin

@@ -34,7 +34,7 @@ end
 
 endmodule
 
-module mux_demod_sp(
+module mux_sp_fft(
     input oce_demod,
     input oce_fft,
     input oce_ofdm,
@@ -99,9 +99,10 @@ module top
     output adc_clk,
     output adc_din,
     input adc_dout,
-    output adc_cs
+    output adc_cs,
     // 出力を外部の回路に接続するなどはしないが、FPGAのsdcを設定するのに必要なので宣言
-    // output clk_pll
+    output clk_pll,
+    output rst_n_pll
 );
 
 localparam UART_CYCLE = CLK_FREQ / UART_BOUD_RATE;
@@ -368,7 +369,7 @@ demodulation
     sp_adc_din
 );
 
-mux_demod_sp mux_demod_sp_instance0(
+mux_sp_fft mux_sp_fft_instance0(
     demod_oce0,
     fft1024_oce0,
     ofdm_oce0,
@@ -392,7 +393,7 @@ mux_demod_sp mux_demod_sp_instance0(
     select_fft_ram
 );
 
-mux_demod_sp mux_demod_sp_instance1(
+mux_sp_fft mux_sp_fft_instance1(
     demod_oce1,
     fft1024_oce1,
     1'd0,
