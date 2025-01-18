@@ -5,7 +5,7 @@
 //Part Number: GW1NR-LV9QN88PC6/I5
 //Device: GW1NR-9
 //Device Version: C
-//Created Time: Tue Jan 14 18:51:30 2025
+//Created Time: Sat Jan 18 21:34:41 2025
 
 // [General]
 // ipc_version=4
@@ -23,7 +23,7 @@
 // CLKOUTP=false
 // CLKOUT_BYPASS=false
 // CLKOUT_DIVIDE_DYN=true
-// CLKOUT_FREQ=48
+// CLKOUT_FREQ=24
 // CLKOUT_TOLERANCE=0
 // DYNAMIC=true
 // LANG=0
@@ -67,9 +67,9 @@ defparam rpll_inst.FCLKIN = "27";
 defparam rpll_inst.DYN_IDIV_SEL = "false";
 defparam rpll_inst.IDIV_SEL = 8;
 defparam rpll_inst.DYN_FBDIV_SEL = "false";
-defparam rpll_inst.FBDIV_SEL = 15;
+defparam rpll_inst.FBDIV_SEL = 7;
 defparam rpll_inst.DYN_ODIV_SEL = "false";
-defparam rpll_inst.ODIV_SEL = 16;
+defparam rpll_inst.ODIV_SEL = 32;
 defparam rpll_inst.PSDA_SEL = "0000";
 defparam rpll_inst.DYN_DA_EN = "true";
 defparam rpll_inst.DUTYDA_SEL = "1000";

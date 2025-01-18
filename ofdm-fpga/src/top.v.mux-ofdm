@@ -1,38 +1,201 @@
-module generate_rst_n_pll
+module mux_sp_fft(
+    input oce_i0,
+    input oce_i1,
+    output oce_o,
+    input ce_i0,
+    input ce_i1,
+    output ce_o,
+    input wre_i0,
+    input wre_i1,
+    output wre_o,
+    input [10:0] ad_i0,
+    input [10:0] ad_i1,
+    output [10:0] ad_o,
+    input [31:0] din_i0,
+    input [31:0] din_i1,
+    output [31:0] din_o,
+    input s0
+);
+    assign oce_o = s0 ? oce_i1 : oce_i0;
+    assign ce_o = s0 ? ce_i1 : ce_i0;
+    assign wre_o = s0 ? wre_i1 : wre_i0;
+    assign ad_o = s0 ? ad_i1 : ad_i0;
+    assign din_o = s0 ? din_i1  :din_i0;
+endmodule
+
+module top
 #(
-    parameter CLK_FREQ = 24_000_000
+    parameter CLK_FREQ = 27_000_000,
+    parameter UART_BOUD_RATE = 9600,
+    parameter MCP3002_CLK_FREQ = 800_000,
+    parameter ADC_SAMPLING_FREQ = 48_000
 )(
-    input clk_pll,
+    input clk,
     input rst_n,
-    output reg rst_n_pll
+    input rx_pin,
+    output tx_pin,
+    output [5:0] led,
+    output adc_clk,
+    output adc_din,
+    input adc_dout,
+    output adc_cs
 );
 
-localparam CYCLE = CLK_FREQ / 1000;
-reg [31:0] pll_cnt;
+// `timescale 1ns / 1ps
+// module testbench;
+// localparam CLK_FREQ = 27_000_000;
+// localparam UART_BOUD_RATE = 9600;
+// reg clk;
+// reg rst_n;
+// wire tx_pin;
 
-// 電源起動直後はPLLが不安定なので、最初の1msは待機のために、rst_n_pllを0にする
+// ==========uart_tx==========
+reg uart_tx_start;
+reg [7:0] uart_tx_data;
+wire uart_tx_finish;
+// ==========sp(prom)==========
+// BSRAM fft0
+wire [31:0] sp_fft0_dout;
+wire sp_fft0_oce;
+wire sp_fft0_ce;
+wire sp_fft0_wre;
+wire [10:0] sp_fft0_ad;
+wire [31:0] sp_fft0_din;
+// ==========ofdm==========
+reg ofdm_start;
+wire ofdm_finish;
+wire ofdm_success;
+reg ofdm_clear;
+wire [95:0] ofdm_res;
+wire ofdm_oce0;
+wire ofdm_ce0;
+// wre0はread onlyなので使わない
+wire [10:0] ofdm_ad0;
+// din0はread onlyなので使わない
 
-always @(posedge clk_pll or negedge rst_n) begin
+reg [7:0] state;
+reg s;
+
+uart_tx#
+(
+    CLK_FREQ,
+    UART_BOUD_RATE
+)uart_tx_instance(
+    clk,
+    rst_n,
+    uart_tx_start,
+    uart_tx_data,
+    tx_pin,
+    uart_tx_finish
+);
+
+Gowin_SP_fft0 gowin_sp_fft0_instance(
+    sp_fft0_dout,
+    clk,
+    sp_fft0_oce,
+    sp_fft0_ce,
+    ~rst_n,
+    sp_fft0_wre,
+    sp_fft0_ad,
+    sp_fft0_din
+);
+
+ofdm ofdm_instance(
+    clk,
+    rst_n,
+    ofdm_start,
+    ofdm_finish,
+    ofdm_success,
+    ofdm_clear,
+    ofdm_res,
+    sp_fft0_dout,
+    ofdm_oce0,
+    ofdm_ce0,
+    ofdm_ad0
+    // sp_fft0_oce,
+    // sp_fft0_ce,
+    // sp_fft0_ad
+);
+
+mux_sp_fft mux_sp_fft_instance(
+    1'd0,
+    ofdm_oce0,
+    sp_fft0_oce,
+    1'd0,
+    ofdm_ce0,
+    sp_fft0_ce,
+    1'd0,
+    1'd0,
+    sp_fft0_wre,
+    11'd0,
+    ofdm_ad0,
+    sp_fft0_ad,
+    32'd0,
+    32'd0,
+    sp_fft0_din,
+    s
+);
+
+always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
-        pll_cnt<= 32'd0;
+        uart_tx_data <= 8'd0;
+        uart_tx_start <= 1'd0;
+        ofdm_start <= 1'd0;
+        ofdm_clear <= 1'd0;
+
+        state <= 8'd0;
+        s <= 1'd0;
     end
     else begin
-        if (pll_cnt != CYCLE) begin
-            pll_cnt <= pll_cnt + 1'd1;
-        end
+
+        case (state)
+            8'd0: begin
+                s <= 1'd1;
+                state <= 8'd1;
+            end
+            8'd1: begin
+                ofdm_start <= 1'd1;
+                state <= 8'd2;
+            end
+            8'd2: begin
+                ofdm_start <= 1'd0;
+                if (ofdm_finish == 1'd1) begin
+                    uart_tx_start <= 1'd1;
+                    uart_tx_data <= ofdm_res[7:0];
+                    state <= 8'd3;
+                end
+            end
+            8'd3: begin
+                uart_tx_start <= 1'd0;
+            end
+        endcase
     end
 end
 
-always @(*) begin
-    if (rst_n == 1'd1) begin
-        rst_n_pll = (pll_cnt == CYCLE) ? 1'd1 : 1'd0;
-    end
-    else begin
-        rst_n_pll = rst_n;
-    end
-end
+// // Generate clock
+// initial begin
+//     clk = 0;
+// end
+// always begin
+//     #(((1 / 27.0) / 2.0) * 1000) clk = ~clk;
+// end
+
+// // main
+// initial begin
+//     // シミュレーションの開始
+//     $dumpfile("testbench.vcd"); // 波形出力ファイル
+//     $dumpvars(0, testbench);
+
+//     // 初期化
+//     #0 rst_n = 0;
+//     #0 rst_n = 1;
+//     // 適当な時刻で終了
+//     #(1 / 27.0 * 1000 * 600 * 27) $finish;
+// end
 
 endmodule
+
+/*
 
 module mux_demod_sp(
     input oce_demod,
@@ -86,8 +249,8 @@ endmodule
 
 module top
 #(
-    parameter CLK_FREQ = 24_000_000,
-    parameter UART_BOUD_RATE = 9600,
+    parameter CLK_FREQ = 48_000_000,
+    parameter UART_BOUD_RATE = 115200,
     parameter MCP3002_CLK_FREQ = 800_000,
     parameter ADC_SAMPLING_FREQ = 48_000
 )(
@@ -100,8 +263,6 @@ module top
     output adc_din,
     input adc_dout,
     output adc_cs
-    // 出力を外部の回路に接続するなどはしないが、FPGAのsdcを設定するのに必要なので宣言
-    // output clk_pll
 );
 
 localparam UART_CYCLE = CLK_FREQ / UART_BOUD_RATE;
@@ -109,11 +270,15 @@ localparam UART_CYCLE_10 = UART_CYCLE * 10;
 localparam MCP3002_CYCLE = CLK_FREQ / MCP3002_CLK_FREQ;
 // ==========pll==========
 wire clk_pll;
-wire rst_n_pll;
 // ==========uart_tx==========
 wire uart_tx_start;
 wire [7:0] uart_tx_data;
 wire uart_tx_finish;
+
+// ==========uart_rx==========
+// wire [7:0] uart_rx_data;
+// wire uart_rx_available;
+// reg uart_rx_clear_available;
 
 // ==========mcp3002(adc)==========
 wire adc_enable;
@@ -205,27 +370,31 @@ Gowin_rPLL gowin_rpll_instance
     clk
 );
 
-generate_rst_n_pll#
-(
-    CLK_FREQ
-)generate_rst_n_pll_instance(
-    clk_pll,
-    rst_n,
-    rst_n_pll
-);
-
 uart_tx#
 (
     CLK_FREQ,
     UART_BOUD_RATE
 )uart_tx_instance(
     clk_pll,
-    rst_n_pll,
+    rst_n,
     uart_tx_start,
     uart_tx_data,
     tx_pin,
     uart_tx_finish
 );
+
+// uart_rx#
+// (
+//     CLK_FREQ,
+//     UART_BOUD_RATE
+// )uart_rx_instance(
+//     clk,
+//     rst_n,
+//     rx_pin,
+//     uart_rx_data,
+//     uart_rx_available,
+//     uart_rx_clear_available
+// );
 
 mcp3002#
 (
@@ -233,7 +402,7 @@ mcp3002#
     MCP3002_CLK_FREQ
 )mcp3002_instance(
     clk_pll,
-    rst_n_pll,
+    rst_n,
     adc_clk,
     adc_din,
     adc_dout,
@@ -244,12 +413,21 @@ mcp3002#
     adc_clear_available
 );
 
+// led#
+// (
+//     .CLK_FREQ(CLK_FREQ)
+// )led_instance(
+//     .clk(clk),
+//     .rst_n(rst_n),
+//     .led(led)
+// );
+
 Gowin_SP_fft0 gowin_sp_fft0_instance(
     sp_fft0_dout,
     clk_pll,
     sp_fft0_oce,
     sp_fft0_ce,
-    ~rst_n_pll,
+    ~rst_n,
     sp_fft0_wre,
     sp_fft0_ad,
     sp_fft0_din
@@ -260,7 +438,7 @@ Gowin_SP_fft1 gowin_sp_fft1_instance(
     clk_pll,
     sp_fft1_oce,
     sp_fft1_ce,
-    ~rst_n_pll,
+    ~rst_n,
     sp_fft1_wre,
     sp_fft1_ad,
     sp_fft1_din
@@ -271,7 +449,7 @@ Gowin_pROM_w gowin_prom_w_instance(
     clk_pll,
     prom_w_oce,
     prom_w_ce,
-    ~rst_n_pll,
+    ~rst_n,
     prom_w_ad
 );
 
@@ -280,7 +458,7 @@ Gowin_SP_adc gowin_sp_adc_instance(
     clk_pll,
     sp_adc_oce,
     sp_adc_ce,
-    ~rst_n_pll,
+    ~rst_n,
     sp_adc_wre,
     sp_adc_ad,
     sp_adc_din
@@ -288,7 +466,7 @@ Gowin_SP_adc gowin_sp_adc_instance(
 
 fft1024 fft1024_instance(
     clk_pll,
-    rst_n_pll,
+    rst_n,
     fft1024_start,
     fft1024_finish,
     fft1024_clear,
@@ -312,7 +490,7 @@ fft1024 fft1024_instance(
 
 ofdm ofdm_instance(
     clk_pll,
-    rst_n_pll,
+    rst_n,
     ofdm_start,
     ofdm_finish,
     ofdm_success,
@@ -331,7 +509,7 @@ demodulation
     ADC_SAMPLING_FREQ
 )demodulation_instance(
     clk_pll,
-    rst_n_pll,
+    rst_n,
     select_fft_ram,
     uart_tx_start,
     uart_tx_data,
@@ -416,6 +594,7 @@ mux_demod_sp mux_demod_sp_instance1(
     select_fft_ram
 );
 
+
 // mcp3002を使う
 // always @(posedge clk or negedge rst_n) begin
 //     if (!rst_n) begin
@@ -492,3 +671,4 @@ mux_demod_sp mux_demod_sp_instance1(
 //     end
 // end
 endmodule
+*/

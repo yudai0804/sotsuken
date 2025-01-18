@@ -7,7 +7,8 @@ import serial
 #     "COM3"  # 使用するポート名 (Windowsの場合: COM3, Linux/Macの場合: /dev/ttyUSB0など)
 # )
 # port = "/dev/ttyUSB1"
-port = "/dev/ttyUSB2"
+port = "/dev/ttyUSB0"
+# port = "/dev/ttyUSB2"
 baudrate = 9600  # ボーレート
 timeout = 1  # タイムアウト時間 (秒)
 

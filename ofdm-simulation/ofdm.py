@@ -515,8 +515,12 @@ def single_symbol(
     is_no_carrier: bool = False,
 ) -> Tuple[Modulation.Result, Demodulation.Result, NDArray[np.int32]]:
     if len(original_data) == 0:
-        original_data = np.concatenate(
-            ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55]),
+        # original_data = np.concatenate(
+        #     ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55]),
+        #     dtype=np.int32,
+        # )
+        original_data = np.array(
+            [0x55, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x55],
             dtype=np.int32,
         )
     assert len(original_data) == 12

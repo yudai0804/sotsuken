@@ -66,5 +66,6 @@ def run() -> None:
     delay: int = 10
     for i in range(N):
         x[i + delay] = fixed_q15_quantization(mod_res.ifft_x[i])
+        # x[i + delay] /= 0.015625
 
     scipy.io.wavfile.write("test.wav", 48000, x)

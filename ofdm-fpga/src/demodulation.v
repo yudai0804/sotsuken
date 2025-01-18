@@ -2,6 +2,8 @@
 //       その機能がないと、OFDMの特性の評価ができない
 //       よくを言うとADCの結果もprintする機能がほしい
 
+// TODO: pllで本当に動くか確認する
+
 module demodulation_tx_res(
     input clk,
     input rst_n,
@@ -24,6 +26,7 @@ always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
         tx_res_clear_enable <= 1'd0;
         uart_tx_start <= 1'd0;
+        uart_tx_data <= 8'd0;
         index <= 4'd0;
         // 適当な初期値を設定(この初期値が使われることはない)
         state <= 3'd0;
@@ -182,12 +185,10 @@ always @(posedge clk or negedge rst_n) begin
         integral <= 16'd0;
         index <= 13'd0;
         cnt <= 13'd0;
+        tmp_buff <= 30'd0;
+        tmp_buff_index <= 3'd0;
     end
     else begin
-        // TODO: oceとceは使うときだけ、出力するようにする(muxがあるので...)
-        // 常にoceとceは出力しておく
-        oce_adc <= 1'd1;
-        ce_adc <= 1'd1;
         if (adc_clear_available == 1'd1) begin
             // adc_clear_available == 1のときは書き込んだ1サイクル後という意味
             adc_clear_available <= 1'd0;
@@ -221,6 +222,8 @@ always @(posedge clk or negedge rst_n) begin
                     // TODO: signal indexもそのときN足す
 
                     // ADC SRAMにデータを書き込む
+                    oce_adc <= 1'd1;
+                    ce_adc <= 1'd1;
                     wre_adc <= 1'd1;
                     ad_adc <= index;
                     din_adc <= adc_data;
@@ -249,7 +252,9 @@ always @(posedge clk or negedge rst_n) begin
             ADC_CYCLE_16 + 3: begin
                 cycle <= cycle + 1'd1;
                 adc_clear_available <= 1'd0;
-                // 書き込んだ1サイクル後にwre_adc=0にする
+                // 書き込んだ1サイクル後にSRAMをOFFにする
+                oce_adc <= 1'd0;
+                ce_adc <= 1'd0;
                 wre_adc <= 1'd0;
                 if (cnt == N - 1) begin
                     // N個分のデータが溜まっていた場合はavailableに
