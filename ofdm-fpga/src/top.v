@@ -84,6 +84,45 @@ always @(*) begin
 end  
 endmodule
 
+module mux_sp_adc
+(
+    input oce_adc_adc,
+    input oce_adc_other,
+    output reg oce_adc,
+    input ce_adc_adc,
+    input ce_adc_other,
+    output reg ce_adc,
+    input wre_adc_adc,
+    input wre_adc_other,
+    output reg wre_adc,
+    input [12:0] ad_adc_adc,
+    input [12:0] ad_adc_other,
+    output reg [12:0] ad_adc,
+    input [9:0] din_adc_adc,
+    input [9:0] din_adc_other,
+    output reg [9:0] din_adc,
+    input select_adc_ram
+);
+
+always @(*) begin
+    if (select_adc_ram == 1'd0) begin
+        oce_adc = oce_adc_adc;
+        ce_adc = ce_adc_adc;
+        wre_adc = wre_adc_adc;
+        ad_adc = ad_adc_adc;
+        din_adc = din_adc_adc;
+    end
+    else begin
+        oce_adc = oce_adc_other;
+        ce_adc = ce_adc_other;
+        wre_adc = wre_adc_other;
+        ad_adc = ad_adc_other;
+        din_adc = din_adc_other;
+    end
+end
+
+endmodule
+
 module top
 #(
     parameter CLK_FREQ = 24_000_000,
@@ -105,12 +144,28 @@ module top
     output rst_n_pll
 );
 
+// `timescale 1ns / 1ps
+// module testbench;
+// localparam CLK_FREQ = 24_000_000;
+// localparam MCP3002_CLK_FREQ = 800_000;
+// localparam UART_BOUD_RATE = 9600;
+// localparam ADC_SAMPLING_FREQ = 48_000;
+// reg clk;
+// reg rst_n;
+// reg rx_pin;
+// wire tx_pin;
+// wire [5:0] led;
+// wire adc_clk;
+// wire adc_din;
+// reg adc_dout;
+// wire adc_cs;
+// wire clk_pll;
+// wire rst_n_pll;
+
 localparam UART_CYCLE = CLK_FREQ / UART_BOUD_RATE;
 localparam UART_CYCLE_10 = UART_CYCLE * 10;
 localparam MCP3002_CYCLE = CLK_FREQ / MCP3002_CLK_FREQ;
-// ==========pll==========
-wire clk_pll;
-wire rst_n_pll;
+
 // ==========uart_tx==========
 wire uart_tx_start;
 wire [7:0] uart_tx_data;
@@ -180,19 +235,39 @@ wire [10:0] ofdm_ad0;
 
 // ==========demodulation==========
 wire [1:0] select_fft_ram;
+
 wire demod_oce0;
 wire demod_ce0;
 wire demod_wre0;
 wire [10:0] demod_ad0;
 wire [31:0] demod_din0;
+
 wire demod_oce1;
 wire demod_ce1;
 wire demod_wre1;
 wire [10:0] demod_ad1;
 wire [31:0] demod_din1;
-wire demod_oce_adc;
-wire demod_ce_adc;
-wire demod_wre_adc;
+
+wire select_adc_ram;
+
+wire demod_oce_adc_adc;
+wire demod_ce_adc_adc;
+wire demod_wre_adc_adc;
+wire [12:0] demod_ad_adc_adc;
+wire [9:0] demod_din_adc_adc;
+
+wire demod_oce_adc_other;
+wire demod_ce_adc_other;
+wire demod_wre_adc_other;
+wire [12:0] demod_ad_adc_other;
+wire [9:0] demod_din_adc_other;
+
+wire tx_res_enable;
+wire tx_res_clear_enable;
+wire is_tmp_mode;
+wire ram_control_available;
+wire ram_control_clear_available;
+wire [12:0] signal_detect_index;
 
 // その他
 reg [5:0] led_reg;
@@ -245,7 +320,8 @@ mcp3002#
     adc_clear_available
 );
 
-Gowin_SP_fft0 gowin_sp_fft0_instance(
+Gowin_SP_fft0 gowin_sp_fft0_instance
+(
     sp_fft0_dout,
     clk_pll,
     sp_fft0_oce,
@@ -256,7 +332,8 @@ Gowin_SP_fft0 gowin_sp_fft0_instance(
     sp_fft0_din
 );
 
-Gowin_SP_fft1 gowin_sp_fft1_instance(
+Gowin_SP_fft1 gowin_sp_fft1_instance
+(
     sp_fft1_dout,
     clk_pll,
     sp_fft1_oce,
@@ -267,7 +344,8 @@ Gowin_SP_fft1 gowin_sp_fft1_instance(
     sp_fft1_din
 );
 
-Gowin_pROM_w gowin_prom_w_instance(
+Gowin_pROM_w gowin_prom_w_instance
+(
     prom_w_dout,
     clk_pll,
     prom_w_oce,
@@ -276,7 +354,8 @@ Gowin_pROM_w gowin_prom_w_instance(
     prom_w_ad
 );
 
-Gowin_SP_adc gowin_sp_adc_instance(
+Gowin_SP_adc gowin_sp_adc_instance
+(
     sp_adc_dout,
     clk_pll,
     sp_adc_oce,
@@ -287,7 +366,8 @@ Gowin_SP_adc gowin_sp_adc_instance(
     sp_adc_din
 );
 
-fft1024 fft1024_instance(
+fft1024 fft1024_instance
+(
     clk_pll,
     rst_n_pll,
     fft1024_start,
@@ -311,7 +391,8 @@ fft1024 fft1024_instance(
     prom_w_ad
 );
 
-ofdm ofdm_instance(
+ofdm ofdm_instance
+(
     clk_pll,
     rst_n_pll,
     ofdm_start,
@@ -325,22 +406,55 @@ ofdm ofdm_instance(
     ofdm_ad0
 );
 
-demodulation
-#(
-    CLK_FREQ,
-    MCP3002_CLK_FREQ,
-    ADC_SAMPLING_FREQ
-)demodulation_instance(
+demodulation_tx_res demodulation_tx_res_instance
+(
     clk_pll,
     rst_n_pll,
-    select_fft_ram,
+    tx_res_enable,
+    tx_res_clear_enable,
     uart_tx_start,
     uart_tx_data,
     uart_tx_finish,
+    ofdm_res
+);
+
+demodulation_read_adc#
+(
+    CLK_FREQ,
+    MCP3002_CLK_FREQ,
+    ADC_SAMPLING_FREQ
+)demodulation_read_adc_instance(
+    clk_pll,
+    rst_n_pll,
+    is_tmp_mode,
+    ram_control_available,
+    ram_control_clear_available,
+    signal_detect_index,
     adc_enable,
     adc_data,
     adc_available,
     adc_clear_available,
+    ofdm_success,
+    sp_adc_dout,
+    demod_oce_adc_adc,
+    demod_ce_adc_adc,
+    demod_wre_adc_adc,
+    demod_ad_adc_adc,
+    demod_din_adc_adc
+);
+
+demodulation_other demodulation_other_instance
+(
+    clk_pll,
+    rst_n_pll,
+    select_fft_ram,
+    select_adc_ram,
+    tx_res_enable,
+    tx_res_clear_enable,
+    is_tmp_mode,
+    ram_control_available,
+    ram_control_clear_available,
+    signal_detect_index,
     fft1024_start,
     fft1024_finish,
     fft1024_clear,
@@ -348,7 +462,6 @@ demodulation
     ofdm_finish,
     ofdm_success,
     ofdm_clear,
-    ofdm_res,
     sp_fft0_dout,
     demod_oce0,
     demod_ce0,
@@ -362,14 +475,15 @@ demodulation
     demod_ad1,
     demod_din1,
     sp_adc_dout,
-    sp_adc_oce,
-    sp_adc_ce,
-    sp_adc_wre,
-    sp_adc_ad,
-    sp_adc_din
+    demod_oce_adc_other,
+    demod_ce_adc_other,
+    demod_wre_adc_other,
+    demod_ad_adc_other,
+    demod_din_adc_other
 );
 
-mux_sp_fft mux_sp_fft_instance0(
+mux_sp_fft mux_sp_fft_instance0
+(
     demod_oce0,
     fft1024_oce0,
     ofdm_oce0,
@@ -393,7 +507,8 @@ mux_sp_fft mux_sp_fft_instance0(
     select_fft_ram
 );
 
-mux_sp_fft mux_sp_fft_instance1(
+mux_sp_fft mux_sp_fft_instance1
+(
     demod_oce1,
     fft1024_oce1,
     1'd0,
@@ -415,6 +530,26 @@ mux_sp_fft mux_sp_fft_instance1(
     32'd0,
     sp_fft1_din,
     select_fft_ram
+);
+
+mux_sp_adc mux_sp_adc_instance
+(
+    demod_oce_adc_adc,
+    demod_oce_adc_other,
+    sp_adc_oce,
+    demod_ce_adc_adc,
+    demod_ce_adc_other,
+    sp_adc_ce,
+    demod_wre_adc_adc,
+    demod_wre_adc_other,
+    sp_adc_wre,
+    demod_ad_adc_adc,
+    demod_ad_adc_other,
+    sp_adc_ad,
+    demod_din_adc_adc,
+    demod_din_adc_other,
+    sp_adc_din,
+    select_adc_ram
 );
 
 // mcp3002を使う
@@ -492,4 +627,27 @@ mux_sp_fft mux_sp_fft_instance1(
 //         endcase
 //     end
 // end
+
+// Generate clock
+// initial begin
+//     clk = 0;
+// end
+// always begin
+//     #(((1 / 27.0) / 2.0) * 1000) clk = ~clk;
+// end
+
+// // main
+// initial begin
+//     // シミュレーションの開始
+//     $dumpfile("testbench.vcd"); // 波形出力ファイル
+//     $dumpvars(0, testbench);
+
+//     // 初期化
+//     #0 rst_n = 0;
+//     #0 rst_n = 1;
+//     // 適当な時刻で終了
+//     #(1 / 27.0 * 1000 * 3000 * 27) $finish;
+//     // #(1 / 27.0 * 1000 * 600 * 27) $finish;
+// end
+
 endmodule
