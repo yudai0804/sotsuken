@@ -2,8 +2,6 @@
 //       その機能がないと、OFDMの特性の評価ができない
 //       よくを言うとADCの結果もprintする機能がほしい
 
-// TODO: pllで本当に動くか確認する
-
 module demodulation_tx_res(
     input clk,
     input rst_n,
@@ -147,7 +145,7 @@ localparam N = 1024;
 localparam ADC_SAMPLING_CYCLE = CLK_FREQ / ADC_SAMPLING_FREQ;
 localparam ADC_CYCLE = CLK_FREQ / MCP3002_CLK_FREQ;
 localparam ADC_CYCLE_16 = ADC_CYCLE * 16;
-localparam ADC_THRESHOLD = 10'h008;
+localparam ADC_THRESHOLD = 10'h040;
 localparam INTEGRAL_THRESHOLD = 16'h0080;
 
 reg [15:0] cycle;
@@ -195,6 +193,7 @@ always @(posedge clk or negedge rst_n) begin
             // 書き込んだ1サイクル後にwre_adc=0にする
             wre_adc <= 1'd0;
         end
+        // TODO: デバッグのためにコメントアウト
         if (cycle != ADC_CYCLE_16 + 3 && ram_control_clear_available == 1'd1) begin
             ram_control_available <= 1'd0;
         end
@@ -338,7 +337,7 @@ localparam SEL_ADC_RAM_DEMOD = 1'd1;
 reg [7:0] state;
 reg [12:0] i;
 reg [12:0] j;
-reg [3:0] shift_cnt;
+reg [7:0] shift_cnt;
 wire [13:0] _reverse_index;
 wire [12:0] reverse_index;
 
@@ -397,7 +396,7 @@ always @(posedge clk or negedge rst_n) begin
         state <= S_READ_ADC;
         i <= 13'd0;
         j <= 13'd0;
-        shift_cnt <= 4'd0;
+        shift_cnt <= 8'd0;
     end
     else begin
         case (state)
@@ -511,17 +510,20 @@ always @(posedge clk or negedge rst_n) begin
                 if (ofdm_success == 1'd1) begin
                     state <= S_TX_RES;
                     tx_res_enable <= 1'd1;
-                    shift_cnt <= 4'd0;
+                    shift_cnt <= 8'd0;
                 end
                 else begin
                     // シフトしてやり直し
                     if (shift_cnt != SHIFT_CNT - 1) begin
                         state <= S_RAM_CONTROL;
-                        shift_cnt <= shift_cnt + 4'd1;
+                        shift_cnt <= shift_cnt + 1'd1;
                     end
                     else begin
-                        state <= S_READ_ADC;
-                        shift_cnt <= 4'd0;
+                        // デバッグのために失敗したときも出力するようにする
+                        // state <= S_READ_ADC;
+                        state <= S_TX_RES;
+                        tx_res_enable <= 1'd1;
+                        shift_cnt <= 8'd0;
                     end
                 end
             end

@@ -82,7 +82,7 @@ always @(posedge clk or negedge rst_n) begin
                 i <= i + 1'd1;
                 case (i)
                     PILOT0, PILOT1, PILOT2, PILOT3: begin
-                        pilot_diff <= dout0_re - PILOT_AMPLITUDE;
+                        // pilot_diff <= dout0_re - PILOT_AMPLITUDE;
                     end
                     PILOT4: begin
                         oce0 <= 1'd0;

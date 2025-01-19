@@ -275,6 +275,17 @@ assign led = ~led_reg;
 reg [7:0] state;
 reg [15:0] cycle;
 
+wire [9:0] _adc_abs;
+wire [9:0] adc_abs;
+// adc_data - 10'h200
+assign adc_abs = adc_data[9] ? adc_data - 10'h200 : 10'h200 - adc_data;
+
+always @(*) begin
+    // led_reg = (ram_control_available == 1'd0) ? adc_abs[8:3] : 6'd0;
+    led_reg = adc_abs[8:3];
+    // led_reg = adc_abs[5:0];
+end
+
 Gowin_rPLL gowin_rpll_instance
 (
     clk_pll,
