@@ -75,7 +75,7 @@ def run_wav() -> None:
     scipy.io.wavfile.write("test.wav", 48000, x)
 
 
-def run_spe() -> None:
+def run_spe() -> NDArray[np.float64]:
     N: int = 1024
     N2: int = N // 2
 
