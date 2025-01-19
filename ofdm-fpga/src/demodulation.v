@@ -385,6 +385,7 @@ module demodulation_other(
     output reg ram_control_clear_available,
     input [12:0] signal_detect_index,
     output reg tx_spe_enable,
+    input uart_mode,
     // fft1024
     output reg fft1024_start,
     input fft1024_finish,
@@ -438,6 +439,9 @@ localparam SEL_ADC_RAM_DEMOD = 1'd1;
 
 localparam SEL_UART_TX_RES = 1'd0;
 localparam SEL_UART_TX_SPE = 1'd1;
+
+localparam UART_MODE_RES = 1'd0;
+localparam UART_MODE_SPE= 1'd1;
 
 reg [7:0] state;
 reg [12:0] i;
@@ -614,17 +618,20 @@ always @(posedge clk or negedge rst_n) begin
             S_OFDM + 8'd2: begin
                 ofdm_clear <= 1'd0;
                 if (ofdm_success == 1'd1) begin
-                    // スペクトルを出力したいときはTX_SPEに移動する
-                    select_fft_ram <= SEL_FFT_RAM_TX_SPE;
-                    select_uart_tx <= SEL_UART_TX_SPE;
-                    state <= S_TX_SPE;
-                    tx_spe_enable <= 1'd1;
-                    
-                    // select_fft_ram <= SEL_FFT_RAM_DEMOD;
-                    // select_uart_tx <= SEL_UART_TX_RES;
-                    // state <= S_TX_RES;
-                    // tx_res_enable <= 1'd1;
-                    // shift_cnt <= 8'd0;
+                    if (uart_mode == UART_MODE_SPE) begin
+                        select_fft_ram <= SEL_FFT_RAM_TX_SPE;
+                        select_uart_tx <= SEL_UART_TX_SPE;
+                        state <= S_TX_SPE;
+                        tx_spe_enable <= 1'd1;
+                    end
+                    else begin
+                        // uart_mode == UART_MODE_RES
+                        select_fft_ram <= SEL_FFT_RAM_DEMOD;
+                        select_uart_tx <= SEL_UART_TX_RES;
+                        state <= S_TX_RES;
+                        tx_res_enable <= 1'd1;
+                        shift_cnt <= 8'd0;
+                    end
                 end
                 else begin
                     select_fft_ram <= SEL_FFT_RAM_DEMOD;

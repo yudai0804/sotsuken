@@ -317,6 +317,13 @@ wire ram_control_available;
 wire ram_control_clear_available;
 wire [12:0] signal_detect_index;
 wire tx_spe_enable;
+wire uart_mode;
+
+localparam UART_MODE_RES = 1'd0;
+localparam UART_MODE_SPE= 1'd1;
+
+// *****uart_modeを選択*****
+assign uart_mode = UART_MODE_RES; 
 
 // その他
 reg [5:0] led_reg;
@@ -533,6 +540,7 @@ demodulation_other demodulation_other_instance
     ram_control_clear_available,
     signal_detect_index,
     tx_spe_enable,
+    uart_mode,
     fft1024_start,
     fft1024_finish,
     fft1024_clear,
