@@ -56,8 +56,7 @@ def simulator_demodulation_multi() -> None:
     N: int = 1024
     delay: int = 10
     BUFF_SIZE = N + delay
-    # symbol_number = 2
-    symbol_number = 9
+    symbol_number = 2
     original_data = np.array(
         [0x55, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x55],
         dtype=np.int32,
