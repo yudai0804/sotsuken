@@ -1,9 +1,13 @@
+import matplotlib.pyplot as plt
+import matplotlib_fontja
 import numpy as np
 import numpy.testing as npt
 import scipy
+import serial
 from fpga import run_demodulation, run_ofdm
+from numpy.typing import NDArray
 from ofdm import single_symbol
-from util_binary import fixed_q15_quantization
+from util_binary import *
 
 ########## simulator ##########
 
@@ -52,7 +56,7 @@ def simulator_demodulation() -> None:
     npt.assert_equal(original_data, fpga_res)
 
 
-def run() -> None:
+def run_wav() -> None:
     N: int = 1024
     BUFF_SIZE = 1100
     original_data = np.array(
@@ -66,6 +70,56 @@ def run() -> None:
     delay: int = 10
     for i in range(N):
         x[i + delay] = fixed_q15_quantization(mod_res.ifft_x[i])
-        # x[i + delay] /= 0.015625
+        x[i + delay] /= 0.015625
 
     scipy.io.wavfile.write("test.wav", 48000, x)
+
+
+def run_spe() -> None:
+    N: int = 1024
+    N2: int = N // 2
+
+    port = "/dev/ttyUSB2"
+    baudrate = 9600
+    timeout = 1
+    ser = serial.Serial(port, baudrate, timeout=timeout)
+
+    raw_data = np.zeros(N2, dtype=np.int32)
+    X = np.zeros(N2, dtype=np.float64)
+    tmp: bytes
+    i: int = 0
+    j: int = 0
+    try:
+        # 受信バッファをクリア
+        ser.reset_input_buffer()
+        # 送信バッファをクリア
+        ser.reset_output_buffer()
+        while 1:
+            data = ser.read()
+            if data:
+                if j == 0:
+                    tmp = data
+                    j += 1
+                else:
+                    raw_data[i] = (int.from_bytes(data) << 8) + int.from_bytes(tmp)
+                    j = 0
+                    if i == N2 - 1:
+                        break
+                    else:
+                        i = i + 1
+        for j in range(N2):
+            X[j] = fixed_q15_to_float(raw_data[j])
+            print(f"{j}, {raw_data[j]}, {X[j]}")
+    finally:
+        # シリアルポートを閉じる
+        ser.close()
+        # print("Serial port closed.")
+
+    return X
+
+
+def run_spe_plot() -> None:
+    N: int = 1024
+    N2: int = N // 2
+
+    pass

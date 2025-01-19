@@ -107,6 +107,104 @@ always @(posedge clk or negedge rst_n) begin
 end
 endmodule
 
+// スペクトル表示する用のmodule
+// 復調器には関係ないが、復調器の性能を評価するのに使用
+module demodulation_tx_spectrum
+(
+    input clk,
+    input rst_n,
+    // demod
+    input tx_spe_enable,
+    // uart_tx
+    output reg uart_tx_start,
+    output reg [7:0] uart_tx_data,
+    input uart_tx_finish,
+    // BSRAM fft0
+    input [31:0] dout0,
+    output reg oce0,
+    output reg ce0,
+    output reg wre0,
+    output reg [10:0] ad0,
+    output reg [31:0] din0
+);
+
+localparam N = 1024;
+localparam N2 = N / 2;
+
+reg [10:0] i;
+reg [7:0] state;
+reg [15:0] tmp;
+
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        i <= 11'd0;
+        state <= 8'd0;
+        uart_tx_start <= 1'd0;
+        uart_tx_data <= 8'd0;
+        oce0 <= 1'd0;
+        ce0 <= 1'd0;
+        wre0 <= 1'd0;
+        ad0 <= 11'd0;
+        din0 <= 32'd0;
+    end
+    else begin
+        if (tx_spe_enable == 1'd1) begin
+            case (state)
+                8'd0: begin
+                    oce0 <= 1'd1;
+                    ce0 <= 1'd1;
+                    wre0 <= 1'd0;
+                    ad0 <= i;
+                    din0 <= 32'd0;
+                    state <= state + 1'd1;
+                end
+                8'd1: begin
+                    state <= state + 1'd1;
+                end
+                8'd2: begin
+                    tmp <= dout0[31:16];
+                    oce0 <= 1'd0;
+                    ce0 <= 1'd0;
+                    state <= state + 1'd1;
+                end
+                8'd3: begin
+                    uart_tx_start <= 1'd1;
+                    uart_tx_data <= tmp[7:0];
+                    state <= state + 1'd1;
+                end
+                8'd4: begin
+                    uart_tx_start <= 1'd0;
+                    state <= state + 1'd1;
+                end
+                8'd5: begin
+                    if (uart_tx_finish == 1'd1) begin
+                        uart_tx_start <= 1'd1;
+                        uart_tx_data <= tmp[15:8];
+                        state <= state + 1'd1;
+                    end
+                end
+                8'd6: begin
+                    uart_tx_start <= 1'd0;
+                    state <= state + 1'd1;
+                end
+                8'd7: begin
+                    if (uart_tx_finish == 1'd1) begin
+                        if (i == N2 - 1)  begin
+                            state <= 8'd255;
+                        end
+                        else begin
+                            i <= i + 1'd1;
+                            state <= 8'd0;
+                        end
+                    end
+                end
+            endcase
+        end
+    end
+end
+
+endmodule
+
 // TODO: 後で、tmpにも対応させる
 module demodulation_read_adc
 #(
@@ -279,12 +377,14 @@ module demodulation_other(
     // demodulation
     output reg [1:0] select_fft_ram,
     output reg select_adc_ram,
+    output reg select_uart_tx,
     output reg tx_res_enable,
     input tx_res_clear_enable,
     output reg is_tmp_mode,
     input ram_control_available,
     output reg ram_control_clear_available,
     input [12:0] signal_detect_index,
+    output reg tx_spe_enable,
     // fft1024
     output reg fft1024_start,
     input fft1024_finish,
@@ -326,13 +426,18 @@ localparam S_RAM_CONTROL = 8'h20;
 localparam S_FFT = 8'h40;
 localparam S_OFDM = 8'h60;
 localparam S_TX_RES = 8'h80;
+localparam S_TX_SPE = 8'ha0;
 
 localparam SEL_FFT_RAM_DEMOD = 2'd0;
 localparam SEL_FFT_RAM_FFT = 2'd1;
 localparam SEL_FFT_RAM_OFDM = 2'd2;
+localparam SEL_FFT_RAM_TX_SPE = 2'd3;
 
 localparam SEL_ADC_RAM_ADC = 1'd0;
 localparam SEL_ADC_RAM_DEMOD = 1'd1;
+
+localparam SEL_UART_TX_RES = 1'd0;
+localparam SEL_UART_TX_SPE = 1'd1;
 
 reg [7:0] state;
 reg [12:0] i;
@@ -370,9 +475,11 @@ always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
         select_fft_ram <= SEL_FFT_RAM_DEMOD;
         select_adc_ram <= SEL_ADC_RAM_ADC;
+        select_uart_tx <= SEL_UART_TX_RES;
         tx_res_enable <= 1'd0;
         is_tmp_mode <= 1'd0;
         ram_control_clear_available <= 1'd0;
+        tx_spe_enable <= 1'd0;
         fft1024_start <= 1'd0;
         fft1024_clear <= 1'd0;
         ofdm_start <= 1'd0;
@@ -506,24 +613,33 @@ always @(posedge clk or negedge rst_n) begin
             end
             S_OFDM + 8'd2: begin
                 ofdm_clear <= 1'd0;
-                select_fft_ram <= SEL_FFT_RAM_DEMOD;
                 if (ofdm_success == 1'd1) begin
-                    state <= S_TX_RES;
-                    tx_res_enable <= 1'd1;
-                    shift_cnt <= 8'd0;
+                    // スペクトルを出力したいときはTX_SPEに移動する
+                    select_fft_ram <= SEL_FFT_RAM_TX_SPE;
+                    select_uart_tx <= SEL_UART_TX_SPE;
+                    state <= S_TX_SPE;
+                    tx_spe_enable <= 1'd1;
+                    
+                    // select_fft_ram <= SEL_FFT_RAM_DEMOD;
+                    // select_uart_tx <= SEL_UART_TX_RES;
+                    // state <= S_TX_RES;
+                    // tx_res_enable <= 1'd1;
+                    // shift_cnt <= 8'd0;
                 end
                 else begin
+                    select_fft_ram <= SEL_FFT_RAM_DEMOD;
+
                     // シフトしてやり直し
                     if (shift_cnt != SHIFT_CNT - 1) begin
                         state <= S_RAM_CONTROL;
                         shift_cnt <= shift_cnt + 1'd1;
                     end
                     else begin
+                        state <= S_READ_ADC;
                         // デバッグのために失敗したときも出力するようにする
-                        // state <= S_READ_ADC;
-                        state <= S_TX_RES;
-                        tx_res_enable <= 1'd1;
-                        shift_cnt <= 8'd0;
+                        // state <= S_TX_RES;
+                        // tx_res_enable <= 1'd1;
+                        // shift_cnt <= 8'd0;
                     end
                 end
             end
@@ -531,6 +647,9 @@ always @(posedge clk or negedge rst_n) begin
                 if (tx_res_clear_enable == 1'd1) begin
                     state <= S_READ_ADC;
                 end
+            end
+            S_TX_SPE: begin
+                // このステートに入ったら抜ける必要はないので、何もしない
             end
         endcase
     end

@@ -38,22 +38,27 @@ module mux_sp_fft(
     input oce_demod,
     input oce_fft,
     input oce_ofdm,
+    input oce_tx_spe,
     output reg oce_o,
     input ce_demod,
     input ce_fft,
     input ce_ofdm,
+    input ce_tx_spe,
     output reg ce_o,
     input wre_demod,
     input wre_fft,
     input wre_ofdm,
+    input wre_tx_spe,
     output reg wre_o,
     input [10:0] ad_demod,
     input [10:0] ad_fft,
     input [10:0] ad_ofdm,
+    input [10:0] ad_tx_spe,
     output reg [10:0] ad_o,
     input [31:0] din_demod,
     input [31:0] din_fft,
     input [31:0] din_ofdm,
+    input [31:0] din_tx_spe,
     output reg [31:0] din_o,
     input [1:0] select
 );
@@ -73,12 +78,19 @@ always @(*) begin
             ad_o = ad_fft;
             din_o = din_fft;
         end
-        default: begin
+        2'd2: begin
             oce_o = oce_ofdm;
             ce_o = ce_ofdm;
             wre_o = wre_ofdm;
             ad_o = ad_ofdm;
             din_o = din_ofdm;
+        end
+        default: begin
+            oce_o = oce_tx_spe;
+            ce_o = ce_tx_spe;
+            wre_o = wre_tx_spe;
+            ad_o = ad_tx_spe;
+            din_o = din_tx_spe;
         end
     endcase
 end  
@@ -120,7 +132,29 @@ always @(*) begin
         din_adc = din_adc_other;
     end
 end
+endmodule
 
+module mux_uart_tx
+(
+    input start_res,
+    input start_spe,
+    output reg o_start,
+    input [7:0] data_res,
+    input [7:0] data_spe,
+    output reg [7:0] o_data,
+    input select_uart_tx
+);
+
+always @(*) begin
+    if (select_uart_tx == 1'd0) begin
+        o_start = start_res;
+        o_data = data_res;
+    end
+    else begin
+        o_start = start_spe;
+        o_data = data_spe;
+    end
+end
 endmodule
 
 module top
@@ -248,6 +282,12 @@ wire demod_wre1;
 wire [10:0] demod_ad1;
 wire [31:0] demod_din1;
 
+wire demod_oce0_tx_spe;
+wire demod_ce0_tx_spe;
+wire demod_wre0_tx_spe;
+wire [10:0] demod_ad0_tx_spe;
+wire [31:0] demod_din0_tx_spe;
+
 wire select_adc_ram;
 
 wire demod_oce_adc_adc;
@@ -262,12 +302,21 @@ wire demod_wre_adc_other;
 wire [12:0] demod_ad_adc_other;
 wire [9:0] demod_din_adc_other;
 
+wire select_uart_tx;
+
+wire uart_tx_start_res;
+wire [7:0] uart_tx_data_res;
+
+wire uart_tx_start_spe;
+wire [7:0] uart_tx_data_spe;
+
 wire tx_res_enable;
 wire tx_res_clear_enable;
 wire is_tmp_mode;
 wire ram_control_available;
 wire ram_control_clear_available;
 wire [12:0] signal_detect_index;
+wire tx_spe_enable;
 
 // その他
 reg [5:0] led_reg;
@@ -423,10 +472,26 @@ demodulation_tx_res demodulation_tx_res_instance
     rst_n_pll,
     tx_res_enable,
     tx_res_clear_enable,
-    uart_tx_start,
-    uart_tx_data,
+    uart_tx_start_res,
+    uart_tx_data_res,
     uart_tx_finish,
     ofdm_res
+);
+
+demodulation_tx_spectrum demodulation_tx_spectrum_instance
+(
+    clk_pll,
+    rst_n_pll,
+    tx_spe_enable,
+    uart_tx_start_spe,
+    uart_tx_data_spe,
+    uart_tx_finish,
+    sp_fft0_dout,
+    demod_oce0_tx_spe,
+    demod_ce0_tx_spe,
+    demod_wre0_tx_spe,
+    demod_ad0_tx_spe,
+    demod_din0_tx_spe
 );
 
 demodulation_read_adc#
@@ -460,12 +525,14 @@ demodulation_other demodulation_other_instance
     rst_n_pll,
     select_fft_ram,
     select_adc_ram,
+    select_uart_tx,
     tx_res_enable,
     tx_res_clear_enable,
     is_tmp_mode,
     ram_control_available,
     ram_control_clear_available,
     signal_detect_index,
+    tx_spe_enable,
     fft1024_start,
     fft1024_finish,
     fft1024_clear,
@@ -498,22 +565,27 @@ mux_sp_fft mux_sp_fft_instance0
     demod_oce0,
     fft1024_oce0,
     ofdm_oce0,
+    demod_oce0_tx_spe,
     sp_fft0_oce,
     demod_ce0,
     fft1024_ce0,
     ofdm_ce0,
+    demod_ce0_tx_spe,
     sp_fft0_ce,
     demod_wre0,
     fft1024_wre0,
     1'd0,
+    demod_wre0_tx_spe,
     sp_fft0_wre,
     demod_ad0,
     fft1024_ad0,
     ofdm_ad0,
+    demod_ad0_tx_spe,
     sp_fft0_ad,
     demod_din0,
     fft1024_din0,
     32'd0,
+    demod_din0_tx_spe,
     sp_fft0_din,
     select_fft_ram
 );
@@ -523,21 +595,26 @@ mux_sp_fft mux_sp_fft_instance1
     demod_oce1,
     fft1024_oce1,
     1'd0,
+    1'd0,
     sp_fft1_oce,
     demod_ce1,
     fft1024_ce1,
+    1'd0,
     1'd0,
     sp_fft1_ce,
     demod_wre1,
     fft1024_wre1,
     1'd0,
+    1'd0,
     sp_fft1_wre,
     demod_ad1,
     fft1024_ad1,
     11'd0,
+    11'd0,
     sp_fft1_ad,
     demod_din1,
     fft1024_din1,
+    32'd0,
     32'd0,
     sp_fft1_din,
     select_fft_ram
@@ -561,6 +638,17 @@ mux_sp_adc mux_sp_adc_instance
     demod_din_adc_other,
     sp_adc_din,
     select_adc_ram
+);
+
+mux_uart_tx mux_uart_tx_instance
+(
+    uart_tx_start_res,
+    uart_tx_start_spe,
+    uart_tx_start,
+    uart_tx_data_res,
+    uart_tx_data_spe,
+    uart_tx_data,
+    select_uart_tx
 );
 
 // mcp3002を使う
