@@ -26,7 +26,7 @@ fpga_parser.add_argument(
 )
 
 run_parser = subparsers.add_parser("run", formatter_class=RawFormatter)
-run_parser.add_argument("run_mode", choices=["spe", "wav"])
+run_parser.add_argument("run_mode", choices=["spe", "wav-single", "wav-multi"])
 
 sim_parser = subparsers.add_parser("sim", formatter_class=RawFormatter)
 sim_parser.add_argument("sim_mode", choices=["single", "multi"])
@@ -76,5 +76,7 @@ elif args.command == "run":
 
     if args.run_mode == "spe":
         run_spe()
-    if args.run_mode == "wav":
-        run_wav()
+    elif args.run_mode == "wav-single":
+        run_wav_single()
+    elif args.run_mode == "wav-multi":
+        run_wav_multi()

@@ -101,7 +101,7 @@ def run_ofdm(_x: NDArray[np.complex128]) -> NDArray[np.int32]:
 
 
 def run_demodulation(
-    x: NDArray[np.float64], expected_X: NDArray[np.int32]
+    x: NDArray[np.float64], expected_X: NDArray[np.int32], res_len: int, delay: int
 ) -> NDArray[np.int32]:
     # 出力する文字列を作成
     s = (
@@ -117,6 +117,7 @@ def run_demodulation(
         ");\n"
         "\n"
         "reg [31:0] i;\n"
+        "reg [7:0] j;\n"
         "reg [3:0] cnt;\n"
         f"wire [{16 * len(x) - 1}:0] data;\n"
         "\n"
@@ -125,11 +126,12 @@ def run_demodulation(
         "    if (!rst_n) begin\n"
         "        adc_dout <= 1'd0;\n"
         "        i <= 32'd0;\n"
+        "        j <= 8'd0;\n"
         "        // 最初にカウントが進んでしまうので、それ対策\n"
         "        cnt <= 4'd0;\n"
         "    end\n"
         "    else begin\n"
-        "        if (adc_cs == 1'd0) begin\n"
+        "        if (adc_cs == 1'd0 && j != 8'd9) begin\n"
         "            cnt <= cnt + 1'd1;\n"
         "            case (cnt)\n"
         "                4'd0, 4'd1, 4'd2, 4'd3, 4'd4: adc_dout <= 1'd0;\n"
@@ -146,6 +148,10 @@ def run_demodulation(
         "                    adc_dout <= data[16 * i + 0];\n"
         f"                    if (i != {len(x)} - 1) begin\n"
         "                        i <= i + 1'd1;\n"
+        "                    end\n"
+        "                    else begin\n"
+        f"                        i <= 32'd{delay};\n"
+        "                        j <= j + 1'd1;\n"
         "                    end\n"
         "                end\n"
         "            endcase\n"
@@ -209,6 +215,9 @@ def run_demodulation(
         " -DFAST_SIMULATION"
         " -DDEMOD_SIMULATION"
     )
+    if res_len == 12:
+        command += "-DSINGLE_SIMULATION"
+
     result: Any = subprocess.run(
         command,
         shell=True,
@@ -222,10 +231,10 @@ def run_demodulation(
     # print(result.stdout)
     list_data = result.stdout.split("\n")
     # VCD info: dumpfile testbench.vcd opened for output.
-    # と最後に改行があるので、全部で14
-    assert len(list_data) == 14, "Failed"
-    ofdm_res = np.zeros(12, dtype=np.int32)
-    for i in range(12):
+    # と最後に改行があるので、全部でres_len + 2
+    assert len(list_data) == res_len + 2, "Failed"
+    ofdm_res = np.zeros(res_len, dtype=np.int32)
+    for i in range(res_len):
         assert list_data[i + 1].replace(" ", "").isdigit() == True
         ofdm_res[i] = int(list_data[i + 1].replace(" ", ""))
     # 作業ディレクトリをもとの場所に移動

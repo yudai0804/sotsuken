@@ -82,7 +82,12 @@ initial begin
     // 初期化
     #0 rst_n = 0;
     #0 rst_n = 1;
-    #(1 / CLK_FREQ_MHZ * 1000 * (ADC_SAMPLING_CYCLE * 1.5 * 1024)) $finish;
+    `ifdef SINGLE_SIMULATION
+    #(1 / CLK_FREQ_MHZ * 1000 * (ADC_SAMPLING_CYCLE * 1.75 * 1024)) $finish;
+    `else
+    #(1 / CLK_FREQ_MHZ * 1000 * (ADC_SAMPLING_CYCLE * 2.75 * 1024)) $finish;
+    `endif
+    // #(1 / CLK_FREQ_MHZ * 1000 * (ADC_SAMPLING_CYCLE * 10.75 * 1024)) $finish;
 end
 
 endmodule

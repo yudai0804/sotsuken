@@ -1,7 +1,3 @@
-// TODO: SRAMの中身(FFTの結果)をprintする機能をつける
-//       その機能がないと、OFDMの特性の評価ができない
-//       よくを言うとADCの結果もprintする機能がほしい
-
 module demodulation_tx_res(
     input clk,
     input rst_n,
@@ -13,11 +9,12 @@ module demodulation_tx_res(
     output reg [7:0] uart_tx_data,
     input uart_tx_finish,
     // ofdm
-    input [95:0] ofdm_res
+    input [95:0] _ofdm_res
 );
 
 reg [2:0] state;
 reg [3:0] index;
+reg [95:0] ofdm_res;
 
 // OFDMが成功したときはUARTを送信
 always @(posedge clk or negedge rst_n) begin
@@ -28,18 +25,24 @@ always @(posedge clk or negedge rst_n) begin
         index <= 4'd0;
         // 適当な初期値を設定(この初期値が使われることはない)
         state <= 3'd0;
+        ofdm_res <= 96'd0;
     end
     else begin
         if (tx_res_enable == 1'd1) begin
             case (state)
+                3'd0: begin
+                    // latch
+                    ofdm_res <= _ofdm_res;
+                    state <= 3'd1;
+                end
                 // STOPビットの時間も正確に連続で送信するのは面倒なので、
                 // finishがちゃんと立ち上がったのを確認してから次のデータを送信するようにする。
                 // なので、STOPビットが1サイクルだけ長い
-                3'd0: begin
+                3'd1: begin
                     index <= 4'd1;
                     uart_tx_start <= 1'd1;
                     uart_tx_data <= ofdm_res[7:0];
-                    state <= 3'd1;
+                    state <= 3'd2;
                     `ifdef DEMOD_SIMULATION
                     $display("%d", ofdm_res[7:0]);
                     $display("%d", ofdm_res[15:8]);
@@ -55,10 +58,10 @@ always @(posedge clk or negedge rst_n) begin
                     $display("%d", ofdm_res[95:88]);
                     `endif
                 end
-                3'd1: begin
-                    state <= 3'd2;
-                end
                 3'd2: begin
+                    state <= 3'd3;
+                end
+                3'd3: begin
                     if (uart_tx_finish == 1'd1) begin
                         uart_tx_start <= 1'd1;
                         case (index)
@@ -75,10 +78,10 @@ always @(posedge clk or negedge rst_n) begin
                             4'd11: uart_tx_data <= ofdm_res[95:88];
                         endcase
                         if (index == 4'd11) begin
-                            state <= 3'd4;
+                            state <= 3'd5;
                         end
                         else begin
-                            state <= 3'd3;
+                            state <= 3'd4;
                             index <= index + 1'd1;
                         end
                     end
@@ -86,10 +89,10 @@ always @(posedge clk or negedge rst_n) begin
                         uart_tx_start <= 1'd0;
                     end
                 end
-                3'd3: begin
-                    state <= 3'd2;
-                end
                 3'd4: begin
+                    state <= 3'd3;
+                end
+                3'd5: begin
                     uart_tx_start <= 1'd0;
                     if (uart_tx_finish == 1'd1) begin
                         tx_res_clear_enable <= 1'd1;
@@ -107,8 +110,8 @@ always @(posedge clk or negedge rst_n) begin
 end
 endmodule
 
-// スペクトル表示する用のmodule
-// 復調器には関係ないが、復調器の性能を評価するのに使用
+// スペクトルをシリアル通信でパソコンに送るmodule
+// 復調器の性能評価に使用
 module demodulation_tx_spectrum
 (
     input clk,
@@ -218,7 +221,7 @@ module demodulation_read_adc
     input clk,
     input rst_n,
     // demodulation
-    input is_tmp_mode,
+    input _is_tmp_mode,
     output reg ram_control_available,
     input ram_control_clear_available,
     output reg [12:0] signal_detect_index,
@@ -238,7 +241,7 @@ module demodulation_read_adc
     output reg [9:0] din_adc  
 );
 
-localparam N = 1024;
+localparam N = 13'd1024;
 
 localparam ADC_SAMPLING_CYCLE = CLK_FREQ / ADC_SAMPLING_FREQ;
 localparam ADC_CYCLE = CLK_FREQ / MCP3002_CLK_FREQ;
@@ -250,14 +253,43 @@ reg [15:0] cycle;
 reg [15:0] integral;
 reg [12:0] index;
 reg [12:0] cnt;
-reg [29:0] tmp_buff;
+reg [39:0] tmp_buff;
 reg [2:0] tmp_buff_index;
+reg [3:0] symbol_cnt;
+reg is_tmp_mode;
 
 wire [9:0] _adc_abs;
 wire [9:0] adc_abs;
+
+wire [9:0] tmp_buff_0;
+wire [9:0] tmp_buff_1;
+wire [9:0] tmp_buff_2;
+wire [9:0] tmp_buff_3;
+wire [9:0] _tmp_adc_abs_0;
+wire [9:0] _tmp_adc_abs_1;
+wire [9:0] _tmp_adc_abs_2;
+wire [9:0] _tmp_adc_abs_3;
+wire [9:0] tmp_adc_abs_0;
+wire [9:0] tmp_adc_abs_1;
+wire [9:0] tmp_adc_abs_2;
+wire [9:0] tmp_adc_abs_3;
+
 // adc_data - 10'h200
 assign _adc_abs = adc_data[9] ? adc_data - 10'h200 : 10'h200 - adc_data;
 assign adc_abs = (_adc_abs >= ADC_THRESHOLD) ? _adc_abs : 10'h000;
+
+assign tmp_buff_0 = tmp_buff[9:0];
+assign tmp_buff_1 = tmp_buff[19:10];
+assign tmp_buff_2 = tmp_buff[29:20];
+assign tmp_buff_3 = tmp_buff[39:30];
+assign _tmp_adc_abs_0 = tmp_buff_0[9] ? tmp_buff_0 - 10'h200 : 10'h200 - tmp_buff_0;
+assign _tmp_adc_abs_1 = tmp_buff_1[9] ? tmp_buff_1 - 10'h200 : 10'h200 - tmp_buff_1;
+assign _tmp_adc_abs_2 = tmp_buff_2[9] ? tmp_buff_2 - 10'h200 : 10'h200 - tmp_buff_2;
+assign _tmp_adc_abs_3 = tmp_buff_3[9] ? tmp_buff_3 - 10'h200 : 10'h200 - tmp_buff_3;
+assign tmp_adc_abs_0 = (_tmp_adc_abs_0 >= ADC_THRESHOLD) ? _tmp_adc_abs_0 : 10'h000;
+assign tmp_adc_abs_1 = (_tmp_adc_abs_1 >= ADC_THRESHOLD) ? _tmp_adc_abs_1 : 10'h000;
+assign tmp_adc_abs_2 = (_tmp_adc_abs_2 >= ADC_THRESHOLD) ? _tmp_adc_abs_2 : 10'h000;
+assign tmp_adc_abs_3 = (_tmp_adc_abs_3 >= ADC_THRESHOLD) ? _tmp_adc_abs_3 : 10'h000;
 
 // mod 8192を行う
 function [12:0] calc_next_adc_index;
@@ -281,20 +313,16 @@ always @(posedge clk or negedge rst_n) begin
         integral <= 16'd0;
         index <= 13'd0;
         cnt <= 13'd0;
-        tmp_buff <= 30'd0;
+        tmp_buff <= 40'd0;
         tmp_buff_index <= 3'd0;
+        symbol_cnt <= 4'd0;
+        is_tmp_mode <= 1'd0;
     end
     else begin
-        if (adc_clear_available == 1'd1) begin
-            // adc_clear_available == 1のときは書き込んだ1サイクル後という意味
-            adc_clear_available <= 1'd0;
-            // 書き込んだ1サイクル後にwre_adc=0にする
-            wre_adc <= 1'd0;
-        end
-        // TODO: デバッグのためにコメントアウト
-        if (cycle != ADC_CYCLE_16 + 3 && ram_control_clear_available == 1'd1) begin
+        if (cycle != ADC_SAMPLING_CYCLE - 1 && ram_control_clear_available == 1'd1) begin
             ram_control_available <= 1'd0;
         end
+
         case (cycle)
             16'd0: begin
                 // 開始
@@ -306,35 +334,85 @@ always @(posedge clk or negedge rst_n) begin
                 cycle <= cycle + 1'd1;
                 adc_enable <= 1'd0;
             end
+            ADC_CYCLE_16 + 1: begin
+                cycle <= cycle + 1'd1;
+                // 動作中にtmp_modeが変わらないように使う前に更新
+                is_tmp_mode <= _is_tmp_mode;
+            end
             ADC_CYCLE_16 + 2: begin
                 // ADCが完了し、availableに
                 cycle <= cycle + 1'd1;
                 adc_clear_available <= 1'd1;
                 if (is_tmp_mode == 1'd0) begin
-                    // TODO: tmpからの復帰の場合の処理も書く
-                    // 流れ
-                    // 今回取得したデータをtmpの末尾に書き込む
-                    // この後のstateでtmpのデータを積分しながら書き込む
-                    // TODO: 積分するときは、何シンボル目かというのも数えながらやる
-                    // TODO: signal indexもそのときN足す
-
-                    // ADC SRAMにデータを書き込む
+                    // is_tmp_modeが1から0へ遷移だった場合は
+                    // バッファにデータを一時保存する
+                    if (tmp_buff_index != 3'd0) begin
+                        tmp_buff_index <= tmp_buff_index + 1'd1;
+                        case (tmp_buff_index)
+                            3'd0: tmp_buff[9:0] <= adc_data;
+                            3'd1: tmp_buff[19:10] <= adc_data;
+                            3'd2: tmp_buff[29:20] <= adc_data;
+                            default: tmp_buff[39:30] <= adc_data;
+                        endcase    
+                    end
+                    else begin
+                        // ADC SRAMにデータを書き込む
+                        oce_adc <= 1'd1;
+                        ce_adc <= 1'd1;
+                        wre_adc <= 1'd1;
+                        ad_adc <= index;
+                        din_adc <= adc_data;
+                        index <= calc_next_adc_index(index);
+                        // 現在のデータが信号が立ち上がってから何個目かを数える
+                        if (cnt == 13'd0 && symbol_cnt == 4'd0) begin
+                            // 信号の立ち上がりが見つけられていない場合は積分する
+                            // 積分した結果から信号の立ち上がりがあるかを確認する
+                            if (integral + adc_abs >= INTEGRAL_THRESHOLD) begin
+                                signal_detect_index <= index;
+                                cnt <= cnt + 1'd1;
+                            end
+                            else begin
+                                integral <= integral + adc_abs;
+                            end
+                        end
+                        else begin
+                            cnt <= cnt + 13'd1;
+                        end
+                    end
+                end
+                else begin
+                    // バッファにデータを一時保存する
+                    tmp_buff_index <= tmp_buff_index + 1'd1;
+                    case (tmp_buff_index)
+                        3'd0: tmp_buff[9:0] <= adc_data;
+                        3'd1: tmp_buff[19:10] <= adc_data;
+                        3'd2: tmp_buff[29:20] <= adc_data;
+                        default: tmp_buff[39:30] <= adc_data;
+                    endcase
+                end
+            end
+            // この後続く処理はtmp_buff_0~3のもので、内容はほぼ同じ
+            ADC_CYCLE_16 + 3: begin
+                // tmp_buff_0
+                cycle <= cycle + 1'd1;
+                adc_clear_available <= 1'd0;
+                if (is_tmp_mode == 1'd0 && tmp_buff_index >= 3'd1) begin
                     oce_adc <= 1'd1;
                     ce_adc <= 1'd1;
                     wre_adc <= 1'd1;
                     ad_adc <= index;
-                    din_adc <= adc_data;
+                    din_adc <= tmp_buff_0;
                     index <= calc_next_adc_index(index);
                     // 現在のデータが信号が立ち上がってから何個目かを数える
-                    if (cnt == 13'd0) begin
+                    if (cnt == 13'd0 && symbol_cnt == 4'd0) begin
                         // 信号の立ち上がりが見つけられていない場合は積分する
                         // 積分した結果から信号の立ち上がりがあるかを確認する
-                        if (integral + adc_abs >= INTEGRAL_THRESHOLD) begin
+                        if (integral + tmp_adc_abs_0 >= INTEGRAL_THRESHOLD) begin
                             signal_detect_index <= index;
                             cnt <= cnt + 1'd1;
                         end
                         else begin
-                            integral <= integral + adc_abs;
+                            integral <= integral + tmp_adc_abs_0;
                         end
                     end
                     else begin
@@ -342,26 +420,130 @@ always @(posedge clk or negedge rst_n) begin
                     end
                 end
                 else begin
-                    // TODO: tmpの実装をする
-                    // バッファにデータを一時保存する
+                    oce_adc <= 1'd0;
+                    ce_adc <= 1'd0;
+                    wre_adc <= 1'd0;
                 end
             end
-            ADC_CYCLE_16 + 3: begin
+            ADC_CYCLE_16 + 4: begin
+                // tmp_buff_1
                 cycle <= cycle + 1'd1;
-                adc_clear_available <= 1'd0;
-                // 書き込んだ1サイクル後にSRAMをOFFにする
+                if (is_tmp_mode == 1'd0 && tmp_buff_index >= 3'd2) begin
+                    oce_adc <= 1'd1;
+                    ce_adc <= 1'd1;
+                    wre_adc <= 1'd1;
+                    ad_adc <= index;
+                    din_adc <= tmp_buff_1;
+                    index <= calc_next_adc_index(index);
+                    // 現在のデータが信号が立ち上がってから何個目かを数える
+                    if (cnt == 13'd0 && symbol_cnt == 4'd0) begin
+                        // 信号の立ち上がりが見つけられていない場合は積分する
+                        // 積分した結果から信号の立ち上がりがあるかを確認する
+                        if (integral + tmp_adc_abs_1 >= INTEGRAL_THRESHOLD) begin
+                            signal_detect_index <= index;
+                            cnt <= cnt + 1'd1;
+                        end
+                        else begin
+                            integral <= integral + tmp_adc_abs_1;
+                        end
+                    end
+                    else begin
+                        cnt <= cnt + 13'd1;
+                    end
+                end
+                else begin
+                    oce_adc <= 1'd0;
+                    ce_adc <= 1'd0;
+                    wre_adc <= 1'd0;
+                end
+            end
+            ADC_CYCLE_16 + 5: begin
+                // tmp_buff_2
+                cycle <= cycle + 1'd1;
+                if (is_tmp_mode == 1'd0 && tmp_buff_index >= 3'd3) begin
+                    oce_adc <= 1'd1;
+                    ce_adc <= 1'd1;
+                    wre_adc <= 1'd1;
+                    ad_adc <= index;
+                    din_adc <= tmp_buff_2;
+                    index <= calc_next_adc_index(index);
+                    // 現在のデータが信号が立ち上がってから何個目かを数える
+                    if (cnt == 13'd0 && symbol_cnt == 4'd0) begin
+                        // 信号の立ち上がりが見つけられていない場合は積分する
+                        // 積分した結果から信号の立ち上がりがあるかを確認する
+                        if (integral + tmp_adc_abs_2 >= INTEGRAL_THRESHOLD) begin
+                            signal_detect_index <= index;
+                            cnt <= cnt + 1'd1;
+                        end
+                        else begin
+                            integral <= integral + tmp_adc_abs_2;
+                        end
+                    end
+                    else begin
+                        cnt <= cnt + 13'd1;
+                    end
+                end
+                else begin
+                    oce_adc <= 1'd0;
+                    ce_adc <= 1'd0;
+                    wre_adc <= 1'd0;
+                end
+            end
+            ADC_CYCLE_16 + 6: begin
+                // tmp_buff_3
+                cycle <= cycle + 1'd1;
+                if (is_tmp_mode == 1'd0 && tmp_buff_index >= 3'd4) begin
+                    oce_adc <= 1'd1;
+                    ce_adc <= 1'd1;
+                    wre_adc <= 1'd1;
+                    ad_adc <= index;
+                    din_adc <= tmp_buff_3;
+                    index <= calc_next_adc_index(index);
+                    // 現在のデータが信号が立ち上がってから何個目かを数える
+                    if (cnt == 13'd0 && symbol_cnt == 4'd0) begin
+                        // 信号の立ち上がりが見つけられていない場合は積分する
+                        // 積分した結果から信号の立ち上がりがあるかを確認する
+                        if (integral + tmp_adc_abs_3 >= INTEGRAL_THRESHOLD) begin
+                            signal_detect_index <= index;
+                            cnt <= cnt + 1'd1;
+                        end
+                        else begin
+                            integral <= integral + tmp_adc_abs_3;
+                        end
+                    end
+                    else begin
+                        cnt <= cnt + 13'd1;
+                    end
+                end
+                else begin
+                    oce_adc <= 1'd0;
+                    ce_adc <= 1'd0;
+                    wre_adc <= 1'd0;
+                end
+            end
+            ADC_CYCLE_16 + 7: begin
+                cycle <= cycle + 1'd1;
+                if (is_tmp_mode == 1'd0) begin
+                    tmp_buff_index <= 3'd0;
+                end
                 oce_adc <= 1'd0;
                 ce_adc <= 1'd0;
                 wre_adc <= 1'd0;
-                if (cnt == N - 1) begin
+            end
+            ADC_SAMPLING_CYCLE - 1: begin
+                cycle <= 16'd0;
+                // cnt == N - 1ではなく、cnt >= N - 1の理由はtmp_buff等でcntがずれたときの対応
+                // ずれたら計算はうまく行かないけど、とりあえず状態だけは遷移させる。
+                if (cnt >= N - 1) begin
                     // N個分のデータが溜まっていた場合はavailableに
                     cnt <= 13'd0;
                     integral <= 16'd0;
                     ram_control_available <= 1'd1;
+                    symbol_cnt <= (symbol_cnt != 4'd8) ? symbol_cnt + 1'd1 : 4'd0;
+                    if (symbol_cnt != 4'd0) begin
+                        signal_detect_index <= signal_detect_index + N;
+                    end
                 end
-            end
-            ADC_SAMPLING_CYCLE - 1: begin
-                cycle <= 16'd0;
             end
             default: begin
                 cycle <= cycle + 1'd1;
@@ -516,8 +698,6 @@ always @(posedge clk or negedge rst_n) begin
                     state <= S_RAM_CONTROL;
                     ram_control_clear_available <= 1'd1;
                     is_tmp_mode <= 1'd1;
-                    // TODO: 今はデバッグ中なので、is_tmp_modeはこれ以降1で固定
-                    // デバッグが完了したら、他のステートのときは0にするようにする
                 end
             end
             S_RAM_CONTROL: begin
@@ -587,6 +767,7 @@ always @(posedge clk or negedge rst_n) begin
                 state <= S_RAM_CONTROL + 8'd6;
             end
             S_RAM_CONTROL + 8'd6: begin
+                is_tmp_mode <= 1'd0;
                 select_fft_ram <= SEL_FFT_RAM_FFT;
                 select_adc_ram <= SEL_ADC_RAM_ADC;
                 state <= S_FFT;
@@ -652,6 +833,7 @@ always @(posedge clk or negedge rst_n) begin
             end
             S_TX_RES: begin
                 if (tx_res_clear_enable == 1'd1) begin
+                    tx_res_enable <= 1'd0;
                     state <= S_READ_ADC;
                 end
             end
