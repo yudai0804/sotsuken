@@ -636,7 +636,7 @@ def multi_symbol(
                 _x[j + shift[i]] = ifft_x[j % N]
         x = np.concatenate((x, _x))
     # 扱いやすいように長さをNの倍数にする
-    x = np.concatenate((x, np.zeros((N - (len(x) % N) % N))))
+    x = np.concatenate((x, np.zeros((N - (len(x) % N)))))
     # 末尾に0を追加
     x = np.concatenate((x, np.zeros(sync.BUFFER_LENGTH - N)))
     assert len(x) % N == 0
