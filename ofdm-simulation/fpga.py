@@ -216,7 +216,7 @@ def run_demodulation(
         " -DDEMOD_SIMULATION"
     )
     if res_len == 12:
-        command += "-DSINGLE_SIMULATION"
+        command += " -DSINGLE_SIMULATION"
 
     result: Any = subprocess.run(
         command,
