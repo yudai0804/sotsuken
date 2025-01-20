@@ -77,7 +77,7 @@ def simulator_demodulation_multi() -> None:
 
 def run_wav_single() -> None:
     N: int = 1024
-    BUFF_SIZE = 1100
+    BUFF_SIZE = N
     original_data = np.array(
         [0x55, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x55],
         dtype=np.int32,
@@ -86,18 +86,16 @@ def run_wav_single() -> None:
         original_data=original_data, is_no_carrier=True
     )
     x = np.zeros(BUFF_SIZE, dtype=np.float64)
-    delay: int = 10
     for i in range(N):
-        x[i + delay] = fixed_q15_quantization(mod_res.ifft_x[i])
-        x[i + delay] /= 0.015625
+        x[i] = fixed_q15_quantization(mod_res.ifft_x[i])
+        x[i] /= 0.015625
 
-    scipy.io.wavfile.write("test.wav", 48000, x)
+    scipy.io.wavfile.write("test-single.wav", 48000, x)
 
 
-def run_wav_multi() -> None:
+def run_wav_multi(SYMBOL_NUMBER: int = 10) -> None:
     N: int = 1024
-    delay: int = 10
-    BUFF_SIZE = N * 10 + delay
+    BUFF_SIZE = N * 10
     original_data = np.array(
         [0x55, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x55],
         dtype=np.int32,
@@ -107,10 +105,10 @@ def run_wav_multi() -> None:
     )
     x = np.zeros(BUFF_SIZE, dtype=np.float64)
     for i in range(9 * N):
-        x[i + delay] = fixed_q15_quantization(mod_res.ifft_x[i % N])
-        x[i + delay] /= 0.015625
+        x[i] = fixed_q15_quantization(mod_res.ifft_x[i % N])
+        x[i] /= 0.015625
 
-    scipy.io.wavfile.write("test.wav", 48000, x)
+    scipy.io.wavfile.write("test-multi.wav", 48000, x)
 
 
 def run_spe() -> NDArray[np.float64]:

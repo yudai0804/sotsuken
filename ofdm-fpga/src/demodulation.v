@@ -242,6 +242,7 @@ module demodulation_read_adc
 );
 
 localparam N = 13'd1024;
+localparam N2 = N / 2;
 
 localparam ADC_SAMPLING_CYCLE = CLK_FREQ / ADC_SAMPLING_FREQ;
 localparam ADC_CYCLE = CLK_FREQ / MCP3002_CLK_FREQ;
@@ -376,7 +377,7 @@ always @(posedge clk or negedge rst_n) begin
                             end
                         end
                         else begin
-                            cnt <= cnt + 13'd1;
+                            cnt <= cnt + 1'd1;
                         end
                     end
                 end
@@ -539,10 +540,17 @@ always @(posedge clk or negedge rst_n) begin
                     cnt <= 13'd0;
                     integral <= 16'd0;
                     ram_control_available <= 1'd1;
-                    symbol_cnt <= (symbol_cnt != 4'd8) ? symbol_cnt + 1'd1 : 4'd0;
+                    symbol_cnt <= symbol_cnt + 1'd1;
                     if (symbol_cnt != 4'd0) begin
                         signal_detect_index <= signal_detect_index + N;
                     end
+                end
+                else if (symbol_cnt == 4'd9 && cnt >= N2 - 1) begin
+                    // symbol_cnt == 4'd9のときは信号休止期間であり、次の信号のための時間を調整する機関でもあるため、
+                    // cntを早めにリセット
+                    cnt <= 13'd0;
+                    integral <= 16'd0;
+                    symbol_cnt <= 4'd0;
                 end
             end
             default: begin
@@ -603,6 +611,7 @@ module demodulation_other(
 localparam N = 1024;
 localparam N2 = N / 2;
 localparam SHIFT_CNT = 10;
+// localparam SHIFT_CNT = 5;
 
 localparam S_READ_ADC = 8'h00;
 localparam S_RAM_CONTROL = 8'h20;
