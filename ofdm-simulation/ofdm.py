@@ -16,25 +16,28 @@ from pydantic import BaseModel, ConfigDict
 N: int = 1024
 # OFDMの周波数帯域は1~6kHz
 # OFDMの下限[Hz]
-SUBCARRIER_FREQUENCY_MIN: int = 1000
+SUBCARRIER_FREQUENCY_MIN_INDEX: int = 21
 # OFDMの上限[Hz]
-SUBCARRIER_FREQUENCY_MAX: int = 6000
+SUBCARRIER_FREQUENCY_MAX_INDEX: int = 121
 # サブキャリア数
 SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL: int = 96
 # サブキャリア間隔[Hz]
 # 変調に用いる情報であって、復調時はサンプリング周波数とNでサブキャリア間隔が決まるので注意
-SUBCARRIER_INTERVAL: int = 50
+SUBCARRIER_INTERVAL: float = 46.875
 
-# パイロット信号の周波数[Hz]
-PILOT_SIGNAL_FREQUENCY: List[int] = [1000, 1050, 2700, 4350, 6000]
+# パイロット信号のインデックス
+# パイロット信号の周波数は984, 1031, 2578, 4125, 5671
+PILOT_SIGNAL_INDEX: List[int] = [21, 22, 55, 88, 121]
 # パイロット信号の数[Hz]
-PILOT_SIGNAL_NUMBER: int = len(PILOT_SIGNAL_FREQUENCY)
+PILOT_SIGNAL_NUMBER: int = len(PILOT_SIGNAL_INDEX)
 # パイロット信号の振幅
-PILOT_SIGNAL_AMPLITUDE: int = 2
+PILOT_SIGNAL_AMPLITUDE: float = 0.5
+# 信号の振幅
+SIGNAL_AMPLITUDE: float = 0.25
 # パイロット信号の位相[rad]
 PILOT_SIGNAL_PHASE: float = 0
 
-SAMPLING_FREQUENCY: int = 51200
+SAMPLING_FREQUENCY: int = 48000
 
 # ローパスフィルタのカットオフ周波数
 CUTOFF_FREQUENCY: int = int(1e4)
@@ -66,19 +69,18 @@ class Modulation:
         self, bpsk_phase: NDArray[np.int32]
     ) -> NDArray[np.float64]:
         X = np.zeros(N, dtype=np.float64)
-        f: NDArray[np.int32] = np.arange(
-            0, SUBCARRIER_FREQUENCY_MAX + 1, step=SUBCARRIER_INTERVAL, dtype=np.int32
-        )
         j: int = 0
-        for i in range(SUBCARRIER_FREQUENCY_MIN // SUBCARRIER_INTERVAL, len(f)):
+        for i in range(
+            SUBCARRIER_FREQUENCY_MIN_INDEX, SUBCARRIER_FREQUENCY_MAX_INDEX + 1
+        ):
             is_pilot_signal: bool = False
-            for f_ps in PILOT_SIGNAL_FREQUENCY:
-                if f[i] == f_ps:
+            for f_ps in PILOT_SIGNAL_INDEX:
+                if i == f_ps:
                     is_pilot_signal = True
             if is_pilot_signal:
                 X[i] = PILOT_SIGNAL_AMPLITUDE
             else:
-                X[i] = bpsk_phase[j]
+                X[i] = float(bpsk_phase[j]) * SIGNAL_AMPLITUDE
                 j += 1
         # 負の周波数に正の周波数のスペクトルをコピー
         for i in range(1, N // 2):
@@ -154,6 +156,7 @@ class Modulation:
         return self.calculate(X, True)
 
 
+# TODO: 気が向いたら量子化を行わないバージョンも作る
 class Demodulation:
     def __init__(self) -> None:
         self.__is_success: bool = False
@@ -246,15 +249,15 @@ class Demodulation:
         ans_f = np.zeros(SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL, dtype=np.float64)
         ans_X = np.zeros(SUBCARRIER_NUMBER_IGNORE_PILOT_SIGNAL, dtype=np.float64)
 
-        i: int = SUBCARRIER_FREQUENCY_MIN // SUBCARRIER_INTERVAL
+        i: int = SUBCARRIER_FREQUENCY_MIN_INDEX
         j: int = 0
         pilot_diff: float = 0
-        PILOT_MIN: float = 1.5
-        PILOT_MAX: float = 2.5
-        while i <= SUBCARRIER_FREQUENCY_MAX // SUBCARRIER_INTERVAL:
+        PILOT_MIN: float = 0.4
+        PILOT_MAX: float = 0.6
+        while i <= SUBCARRIER_FREQUENCY_MAX_INDEX:
             is_pilot: bool = False
-            for fp in PILOT_SIGNAL_FREQUENCY:
-                if abs(f[i] - fp) <= 1e-10:
+            for fp in PILOT_SIGNAL_INDEX:
+                if i == fp:
                     is_pilot = True
                     pilot_diff = X[i] - PILOT_SIGNAL_AMPLITUDE
                     if (PILOT_MIN < X[i] < PILOT_MAX) == False:
@@ -316,9 +319,9 @@ class Demodulation:
         t_len_n, x_len_n = self.__linear_interpolation(t, x_lpf)
         # 量子化をするとDCバイアスが少しのる。
         # 量子化を細かくすればDCバイアスは小さくなる
-        # 最大振幅(0.05)の√2倍に設定
+        # 最大振幅(0.0125)の√2倍に設定
         # パラメーターは雰囲気で決めているため、他のパラメーターを変えるとずれることがあるので注意
-        MAX_AMPLITUDE: float = 0.05**0.5
+        MAX_AMPLITUDE: float = 0.0125**0.5
         x_quant = self.__quantization(x_len_n, 8, -MAX_AMPLITUDE, MAX_AMPLITUDE)
         f, X = self.__fft(x_quant)
         _X = self.__pilot(f, X)
@@ -350,12 +353,12 @@ class Synchronization:
         # 根拠なきお気持ちパラメーター
         # ここらへんのパラメーターはNなどを変更したら、調整しないと動かないときがあるので注意
 
-        self.MINIMUM_VOLTAGE: float = 0.0005
-        self.EDGE_THRESHOLD: float = 0.0025
+        self.MINIMUM_VOLTAGE: float = 0.000125
+        self.EDGE_THRESHOLD: float = 0.000625
         # SYMBOL_NUMBERが1だとオフセットがずれていた場合に復調できないことがあるので、3が最小(2と効率が変わらない)
         self.SYMBOL_NUMBER: int = 3
         self.BUFFER_LENGTH: int = self.SYMBOL_NUMBER * N
-        self.CORRELATE_THRESHOLD: float = 0.125
+        self.CORRELATE_THRESHOLD: float = 0.0078125
         self.ONE_CYCLE_BUFFER_LENGTH: int = N
         self.SYMBOL_RANGE: int = int(0.025 * N)
 
@@ -512,8 +515,12 @@ def single_symbol(
     is_no_carrier: bool = False,
 ) -> Tuple[Modulation.Result, Demodulation.Result, NDArray[np.int32]]:
     if len(original_data) == 0:
-        original_data = np.concatenate(
-            ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55]),
+        # original_data = np.concatenate(
+        #     ([0x55], np.random.randint(0, 255, size=10, dtype=np.int32), [0x55]),
+        #     dtype=np.int32,
+        # )
+        original_data = np.array(
+            [0x55, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x55],
             dtype=np.int32,
         )
     assert len(original_data) == 12
@@ -629,7 +636,7 @@ def multi_symbol(
                 _x[j + shift[i]] = ifft_x[j % N]
         x = np.concatenate((x, _x))
     # 扱いやすいように長さをNの倍数にする
-    x = np.concatenate((x, np.zeros((N - (len(x) % N) % N))))
+    x = np.concatenate((x, np.zeros((N - (len(x) % N)))))
     # 末尾に0を追加
     x = np.concatenate((x, np.zeros(sync.BUFFER_LENGTH - N)))
     assert len(x) % N == 0

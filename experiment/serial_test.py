@@ -7,6 +7,7 @@ import serial
 #     "COM3"  # 使用するポート名 (Windowsの場合: COM3, Linux/Macの場合: /dev/ttyUSB0など)
 # )
 # port = "/dev/ttyUSB1"
+# port = "/dev/ttyUSB0"
 port = "/dev/ttyUSB2"
 baudrate = 9600  # ボーレート
 timeout = 1  # タイムアウト時間 (秒)
@@ -25,13 +26,16 @@ try:
     ser.write(message.encode())  # 文字列をバイト列に変換して送信
     print(f"Sent: {message.strip()}")
 
+    t = time.time()
+
     # データを受信
     # response = ser.readline()  # 1行分のデータを読み取る (タイムアウトで終了)
     while 1:
-        if ser.in_waiting:
-            data = ser.read()
-            print(data)
-            # print(ser.readline())
+        # if ser.in_waiting:
+        data = ser.read()
+        if data:
+            print(f"{time.time() - t:.2f}[s]:, {data}")
+        # print(ser.readline())
         # if data == bytes(0):
         # continue
 finally:

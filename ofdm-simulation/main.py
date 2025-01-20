@@ -20,9 +20,13 @@ fpga_parser.add_argument(
         "butterfly-table",
         "twinddle-factor",
         "output-fft1024",
+        "output-ofdm-spectrum",
         "read-fft1024",
     ],
 )
+
+run_parser = subparsers.add_parser("run", formatter_class=RawFormatter)
+run_parser.add_argument("run_mode", choices=["spe", "wav-single", "wav-multi"])
 
 sim_parser = subparsers.add_parser("sim", formatter_class=RawFormatter)
 sim_parser.add_argument("sim_mode", choices=["single", "multi"])
@@ -63,5 +67,16 @@ elif args.command == "fpga":
         output_twinddle_factor()
     elif args.fpga_mode == "output-fft1024":
         output_fft1024()
+    elif args.fpga_mode == "output-ofdm-spectrum":
+        output_ofdm_spectrum()
     elif args.fpga_mode == "read-fft1024":
         read_fft1024()
+elif args.command == "run":
+    from run import *
+
+    if args.run_mode == "spe":
+        run_spe()
+    elif args.run_mode == "wav-single":
+        run_wav_single()
+    elif args.run_mode == "wav-multi":
+        run_wav_multi()

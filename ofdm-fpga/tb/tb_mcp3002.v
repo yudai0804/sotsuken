@@ -66,6 +66,8 @@ initial begin
     // SPI test
     #0 dout = 0;
     #0 enable = 1'd1;
+    // 0.5クロックずれるので時間を潰す
+    #(((1 / 27.0) / 2.0) * 1000) dout = 0;
     // 送信している間なので、適当に待機
     // 9
     #(1 / 27.0 * 1000 * CYCLE * 5) dout = 1;
@@ -90,8 +92,9 @@ initial begin
     // 最後は1サイクル待機
     #(1 / 27.0 * 1000 * CYCLE) dout = 0;
     // availableなのを確認
-    #(1 / 27.0 * 1000 * CYCLE) assert(available == 1'd1);
-    // dataがただし以下確認
+    // 0.5クロックずれてるので注意(面倒なので、1クロックずらして読んでる)
+    #(1 / 27.0 * 1000 * (CYCLE + 1)) assert(available == 1'd1);
+    // dataが正しいか確認
     #0 assert(data == 10'h2AA);
     // clearしたらちゃんとavailable=0になるか確認
     #0 clear_available = 1'd1;
