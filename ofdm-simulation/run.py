@@ -6,7 +6,7 @@ import scipy
 import serial
 from fpga import run_demodulation, run_ofdm
 from numpy.typing import NDArray
-from ofdm import SUBCARRIER_INTERVAL, single_symbol
+from ofdm import single_symbol
 from util_binary import *
 
 ########## simulator ##########
@@ -157,15 +157,5 @@ def run_spe() -> NDArray[np.float64]:
 def run_spe_plot() -> None:
     N: int = 1024
     N2: int = N // 2
-    index = np.zeros(N2, np.int32)
-    X = np.zeros(N2, np.float64)
-    for i in range(N2):
-        numbers = input().replace(" ", "").split(",")
-        index[i] = int(numbers[0])
-        X[i] = float(numbers[2])
-    plt.figure()
-    plt.plot(index[0:130] * SUBCARRIER_INTERVAL, X[0:130])
-    plt.xlabel("周波数[Hz]")
-    plt.ylabel("振幅")
 
-    plt.show()
+    pass
