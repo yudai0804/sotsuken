@@ -1,5 +1,3 @@
-import matplotlib.pyplot as plt
-import matplotlib_fontja
 import numpy as np
 import numpy.testing as npt
 import scipy
