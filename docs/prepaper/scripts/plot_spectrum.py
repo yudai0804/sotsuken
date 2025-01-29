@@ -26,12 +26,16 @@ with open("data/serial_data_line7=-9.5,master=0,master_out=10", "r") as file:
         X[i] = float(numbers[2])
 
 plt.figure()
+# メモリの向きを内側にする。plt.plotの前に呼び出す必要あり。
+plt.rcParams["xtick.direction"] = "in"
+plt.rcParams["ytick.direction"] = "in"
 plt.plot(index[0:130] * SUBCARRIER_INTERVAL, X[0:130])
 plt.xlabel("周波数[Hz]", fontsize=22)
-plt.ylabel("信号強度", fontsize=22)
+plt.ylabel("フーリエ係数", fontsize=22)
 plt.xticks([0, 2000, 4000, 6000])
 plt.yticks([-0.25, 0.0, 0.25, 0.5])
 plt.tick_params(width=1, length=10, labelsize=22)
+plt.ylim(-0.30, 0.55)
 plt.tight_layout()
 
 os.makedirs("assets", exist_ok=True)
