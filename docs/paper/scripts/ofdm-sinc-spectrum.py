@@ -57,5 +57,5 @@ plt.tight_layout()
 
 os.makedirs("assets", exist_ok=True)
 # word用なので、svgではなくpng
-plt.savefig("assets/ofdm-sinc-spectrum.png")
+plt.savefig("assets/ofdm-sinc-spectrum-python.svg")
 os.chdir(start_dir)
