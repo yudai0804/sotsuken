@@ -34,7 +34,7 @@ plt.yticks([0.0, 0.5, 1.0])
 # メモリの向きを内側にする。plt.plotの前に呼び出す必要あり。
 plt.rcParams["xtick.direction"] = "in"
 plt.rcParams["ytick.direction"] = "in"
-plt.tick_params(width=1, length=10, labelsize=22)
+plt.tick_params(width=1, length=10, labelsize=18)
 
 plt.vlines(
     np.arange(SUBCARRIER_NUMBER),
@@ -49,8 +49,7 @@ for i in range(SUBCARRIER_NUMBER):
     # 左から見ていったときに左側のグラフが先で重ならないようにする。そっちのほうが見やすいので。
     plt.plot(f, X[SUBCARRIER_NUMBER - i - 1], linewidth=3)
 
-plt.xlabel("f[Hz]", fontsize=22)
-# plt.ylabel("スペクトル", fontsize=22)
+plt.xlabel("f[Hz]", fontsize=18)
 
 plt.tight_layout()
 
