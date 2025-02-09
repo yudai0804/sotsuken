@@ -18,6 +18,7 @@ X = np.zeros(N2, np.float64)
 start_dir = os.getcwd()
 # このファイルがあるディレクトリまで移動
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
+# 1つ上のディレクトリに移動
 os.chdir("..")
 with open("data/serial_data_line7=-9.5,master=0,master_out=10", "r") as file:
     for i in range(N2):
