@@ -24,8 +24,6 @@ for i in range(N // 4, N // 4 + N // 8):
     x[i], x[i + N // 8] = x[i + N // 8], x[i]
 plt.figure()
 
-plt.plot(t, x, linewidth=3)
-
 plt.xticks([])
 plt.yticks([])
 
@@ -42,8 +40,10 @@ plt.vlines(
     ymin=-1,
     ymax=1,
     color="black",
-    linewidth=1,
+    linewidth=2.5,
 )
+
+plt.plot(t, x, linewidth=5)
 
 plt.tight_layout()
 

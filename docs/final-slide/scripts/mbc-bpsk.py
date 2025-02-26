@@ -22,8 +22,6 @@ t = np.linspace(0, 6 * np.pi, N)
 x = np.sin(2 * t) * np.exp(-t / tau)
 plt.figure()
 
-plt.plot(t, x, linewidth=3)
-
 plt.xticks([])
 plt.yticks([])
 
@@ -32,8 +30,10 @@ plt.hlines(
     xmin=t[0],
     xmax=t[-1],
     color="black",
-    linewidth=1,
+    linewidth=2.5,
 )
+
+plt.plot(t, x, linewidth=5)
 
 # 外枠を消す
 plt.gca().spines["right"].set_visible(False)

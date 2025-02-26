@@ -24,7 +24,7 @@ x2 = np.sin(2 * t) * np.exp(-t / tau)
 x3 = np.sin(3 * t) * np.exp(-t / tau)
 
 fig, (ax1, ax2, ax3) = plt.subplots(3, 1)
-ax1.plot(t, x1)
+
 ax1.set_xticks([])
 ax1.set_yticks([])
 ax1.hlines(
@@ -32,13 +32,14 @@ ax1.hlines(
     xmin=t[0],
     xmax=t[-1],
     color="black",
-    linewidth=1,
+    linewidth=2.5,
 )
 ax1.spines["right"].set_visible(False)
 ax1.spines["top"].set_visible(False)
 ax1.spines["bottom"].set_visible(False)
 ax1.spines["left"].set_visible(False)
-ax2.plot(t, x2)
+ax1.plot(t, x1, linewidth=5)
+
 ax2.set_xticks([])
 ax2.set_yticks([])
 ax2.hlines(
@@ -46,13 +47,14 @@ ax2.hlines(
     xmin=t[0],
     xmax=t[-1],
     color="black",
-    linewidth=1,
+    linewidth=2.5,
 )
 ax2.spines["right"].set_visible(False)
 ax2.spines["top"].set_visible(False)
 ax2.spines["bottom"].set_visible(False)
 ax2.spines["left"].set_visible(False)
-ax3.plot(t, x3)
+ax2.plot(t, x2, linewidth=5)
+
 ax3.set_xticks([])
 ax3.set_yticks([])
 ax3.hlines(
@@ -60,12 +62,13 @@ ax3.hlines(
     xmin=t[0],
     xmax=t[-1],
     color="black",
-    linewidth=1,
+    linewidth=2.5,
 )
 ax3.spines["right"].set_visible(False)
 ax3.spines["top"].set_visible(False)
 ax3.spines["bottom"].set_visible(False)
 ax3.spines["left"].set_visible(False)
+ax3.plot(t, x3, linewidth=5)
 
 plt.tight_layout()
 
