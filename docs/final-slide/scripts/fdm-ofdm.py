@@ -39,7 +39,7 @@ ax1.vlines(
     linewidth=3,
     linestyle=":",
 )
-ax1.plot(x, y_fig1, color="red", linewidth=3)
+ax1.plot(x, y_fig1, color="C0", linewidth=3)
 ax1.set_yticks([])
 ax1.grid(False)
 
@@ -56,8 +56,8 @@ ax2.vlines(
     linewidth=3,
     linestyle=":",
 )
-ax2.plot(x, y_fig2_cos, color="blue", linewidth=3)
-ax2.plot(x, y_fig2_sin, color="red", linewidth=3)
+ax2.plot(x, y_fig2_cos, color="C0", linewidth=3)
+ax2.plot(x, y_fig2_sin, color="C0", linewidth=3)
 ax2.set_xticks([])
 ax2.set_yticks([])
 
