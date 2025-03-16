@@ -1,6 +1,3 @@
-// 固定小数点のフォーマットはq1.15
-// TODO: アルゴリズムを一度ドキュメントにまとめる
-
 module fft1024_twindle_factor_index
 (
     input [9:0] i,

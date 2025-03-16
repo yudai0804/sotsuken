@@ -5,7 +5,8 @@
     // x1re = x0re - x1re * wre + x1im * wim = x0re - A | x1re * wre | + B | x1im * wim | = x0re + A1 | x1re * wre | + B1 | x1im * wim |
     // x1im = x0im - x1im * wre - x1re * wim = x0im - C | x1im * wre | - D | x1re * wim | = x0im + C1 | x1im * wre | + D1 | x1re * wim |
     // A~Dは掛け算をしたときの符号(xorで求めることができる)
-    // 符号は1のときはマイナス、0のときはプラス// A = sign(x1re * wre) = x1re ^ wre
+    // 符号は1のときはマイナス、0のときはプラス
+    // A = sign(x1re * wre) = x1re ^ wre
     // B = sign(x1im * wim) = x1im ^ wim
     // C = sign(x1im * wre) = x1im ^ wre
     // D = sign(x1re * wim) = x1re ^ wim
