@@ -19,36 +19,20 @@ os.chdir("..")
 N: int = 10000
 tau: float = 2 * np.pi
 t = np.linspace(0, 2 * np.pi, N)
-x0 = np.cos(0 * t)
-x1 = np.cos(t + np.pi)
-x2 = np.cos(2 * t)
+x1 = np.cos(t)
+x2 = np.cos(2 * t + np.pi)
 x3 = np.cos(3 * t)
-x4 = np.cos(4 * t + np.pi)
-x5 = np.cos(5 * t)
+x4 = np.cos(4 * t)
+x5 = np.cos(5 * t + np.pi)
 x6 = np.cos(6 * t)
 x7 = np.cos(7 * t + np.pi)
-ofdm = x0 + x1 + x2 + x3 + x4 + x5 + x6 + x7
+x8 = np.cos(8 * t + np.pi)
+ofdm = x1 + x2 + x3 + x4 + x5 + x6 + x8
 
-fig, (ax0, ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8) = plt.subplots(9, 1)
+fig, (ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8, ax9) = plt.subplots(9, 1)
 
 width = 2.0
 ax_width = 1.0
-
-ax0.set_xticks([])
-ax0.set_yticks([])
-ax0.spines["right"].set_visible(False)
-ax0.spines["top"].set_visible(False)
-ax0.spines["bottom"].set_visible(False)
-ax0.spines["left"].set_visible(False)
-ax0.hlines(
-    0,
-    xmin=t[0],
-    xmax=t[-1],
-    color="black",
-    linewidth=ax_width,
-)
-ax0.plot(t, x0, linewidth=width)
-
 
 ax1.set_xticks([])
 ax1.set_yticks([])
@@ -168,7 +152,22 @@ ax8.hlines(
     color="black",
     linewidth=ax_width,
 )
-ax8.plot(t, ofdm, linewidth=width)
+ax8.plot(t, x8, linewidth=width)
+
+ax9.set_xticks([])
+ax9.set_yticks([])
+ax9.spines["right"].set_visible(False)
+ax9.spines["top"].set_visible(False)
+ax9.spines["bottom"].set_visible(False)
+ax9.spines["left"].set_visible(False)
+ax9.hlines(
+    0,
+    xmin=t[0],
+    xmax=t[-1],
+    color="black",
+    linewidth=ax_width,
+)
+ax9.plot(t, ofdm, linewidth=width)
 
 plt.tight_layout()
 

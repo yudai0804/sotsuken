@@ -28,13 +28,13 @@ for i in range(SUBCARRIER_NUMBER):
     X[i] = abs(np.sinc(f - i))
 plt.figure()
 
-tick_labels = [f"f{i}" for i in range(SUBCARRIER_NUMBER)]
-plt.xticks(np.arange(SUBCARRIER_NUMBER), tick_labels)
-plt.yticks([0.0, 0.5, 1.0])
 # メモリの向きを内側にする。plt.plotの前に呼び出す必要あり。
 plt.rcParams["xtick.direction"] = "in"
 plt.rcParams["ytick.direction"] = "in"
 plt.tick_params(width=1, length=10, labelsize=18)
+tick_labels = [f"$f_{i}$" for i in range(SUBCARRIER_NUMBER)]
+plt.xticks(np.arange(SUBCARRIER_NUMBER), tick_labels)
+plt.yticks([0.0, 0.5, 1.0])
 
 plt.vlines(
     np.arange(SUBCARRIER_NUMBER),
@@ -49,7 +49,8 @@ for i in range(SUBCARRIER_NUMBER):
     # 左から見ていったときに左側のグラフが先で重ならないようにする。そっちのほうが見やすいので。
     plt.plot(f, X[SUBCARRIER_NUMBER - i - 1], linewidth=3)
 
-plt.xlabel("f[Hz]", fontsize=18)
+plt.xlabel("周波数", fontsize=18)
+plt.ylabel("スペクトル強度", fontsize=18)
 
 plt.tight_layout()
 
