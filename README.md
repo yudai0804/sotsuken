@@ -1,24 +1,25 @@
 # sotsuken
 卒研用リポジトリです。  
+
 本リポジトリには
 - OFDMの変復調のシミュレーションプログラム(Python)
 - FPGA(Gowin社のGW1NR-9)を用いて製作したOFDM復調器のプログラム(Verilog HDL)
 - その他卒論などのデータ
+
 などが入っています。
 
-PC上でOFDMの信号を生成し、復調器に入力。復調器ではFFTを行って復調し、その結果をUARTで送信という流れで動作します。
-
-PythonやVerilog HDLのコードはテスト可能なものに関しては、コミットしたときにGitHub Actionsが走るようになっていて、自動でテストが実行されます。  
-Pythonのテストフレームワークにはpytestを使用しています。  
-また、Verilog HDLのテストもフレームワークにはpytestを使用していて、Pythonからsubprocessを介して、Icarus Verilog上でVerilog HDLを実行、結果をprintし、正しいかをPython側で確認という流れで開発しています。  
+- PC上でOFDMの信号を生成し、復調器に入力。復調器ではFFTを行って復調し、その結果をUARTで送信という流れで動作します。  
+- PythonやVerilog HDLのコードはコミットをすると、GitHub Actionsが走って、自動でテストが実行されます。  
+- Pythonのテストフレームワークにはpytestを使用しています。  
+- また、Verilog HDLのテストもフレームワークにはpytestを使用していて、Pythonからsubprocessを介して、Icarus Verilog上でVerilog HDLを実行、結果をprintし、正しいかをPython側で確認という流れで開発しています。  
 
 # ディレクトリ説明(抜粋)
 - data
   - 実験データを保存する場所
 - docs
-  - 整理できてなくてぐちゃくちゃ&assetsと最終的な成果物の内容が異なっている部分が多いので注意
+  - assetsと最終的な成果物の内容が異なっている部分が多いので注意
   - final-slide
-    - [卒研審査会用スライド(pdf)](https://github.com/yudai0804/sotsuken/blob/master/docs/final-slide/20250304%E5%B1%B1%E5%8F%A3%E9%9B%84%E5%A4%A7%E7%99%BA%E8%A1%A8_%E6%9C%AC%E7%95%AA%E7%94%A8.pdf)
+    - [卒研審査会用スライド](https://github.com/yudai0804/sotsuken/blob/master/docs/final-slide/20250304%E5%B1%B1%E5%8F%A3%E9%9B%84%E5%A4%A7%E7%99%BA%E8%A1%A8_%E6%9C%AC%E7%95%AA%E7%94%A8.pdf)
   - midterm
     - 中間発表用スライド
   - paper
@@ -93,9 +94,10 @@ Pythonのテストフレームワークにはpytestを使用しています。
 # ofdm-simulation
 Pythonのシミュレーションプログラム。  
 シミュレーションプログラムと言いながらも、FPGAの開発の補助スクリプト的な役割もあります。  
+
 ## Requirements
-Python version: 3.11
-OS: Linux(Debian 12)
+- Python version: 3.11
+- OS: Linux(Debian 12)
 
 Library
   - matplotlib
@@ -120,7 +122,7 @@ octave(for xcorr)
 
 # Setup Python
 パッケージ管理にはPoetryを使用しています。  
-もしPoetryを使用したくない場合は、使用しているライブラリのバージョンを合わせてpipでインストーすれば動くと思います。  
+もしPoetryを使用したくない場合は、使用しているライブラリのバージョンを合わせてpipでインストールすれば動くと思います。  
 
 Install poetry
 ```
@@ -138,7 +140,7 @@ poetry shell
 ```
 仮想環境を常に有効にしたくない場合は、各コマンドの前に`poetry run`と入力してください。  
 
-Run  
+実行  
 ```
 python3 ofdm-simulation/main.py {args1} {args2}
 ```
@@ -170,7 +172,9 @@ args1とargs2は必須で、それぞれインデントの浅い方がargs1、�
     - multi
       - OFDMシンボルが連続するときの変復調
 
-実機での動作確認のでは、事前に生成したwavファイルを再生し、シリアル通信をするソフト(TeraTerm)や適当に書いたpyserialのプログラムとかでシリアル通信の結果を眺めて、動作確認を行いました。そのため、動作確認のときはmain.pyを使う機会は少なかったです。
+
+実機での動作確認のでは、事前に生成したwavファイルを再生し、シリアル通信をするソフト(TeraTerm)や適当に書いたpyserialのプログラムとかでシリアル通信の結果を眺めて、動作確認を行いました。  
+そのため、動作確認のときはmain.pyを使う機会は少なかったです。
 
 pytest
 ```
@@ -195,10 +199,11 @@ GitHub Actionsで動いているCIと同じ内容が実行できる。
 ```
 
 # ofdm-fpga
-FPGAのプログラム
+FPGAのプログラム。  
+Icarus Verilogでシミュレーションを行っているため、シミュレーションのできない暗号化されているIPなどは使用していません。
 
 - FPGA: GW1NR-9(Tang Nano 9K)
-- IDE: Gowin 1.9.9.03 IDE Education
+- IDE: Gowin EDA 1.9.9.03 Education Version
 - FPGA write: openFPGALoader
 - Simulator: Icarus Verilog
 
@@ -207,19 +212,20 @@ IDEを立ち上げて、`ofdm-fpga`のディレクトリを開けばビルドで
 
 ## Icarus Verilog
 Icarus Verilog(iverilog)はVerilog HDLのシミュレータです。  
-
-```
-iverilog -o testbench verilog/file/name.v -DSIMULATOR && vvp testbench && gtkwave testbench.vcd
-```
+Icarus Verillogの使い方は`ofdm-simulation/fpga.py`や`ofdm-simulation/tests/test_fpga.py`あたりのソースコードを見るとわかりやすいです。  
 
 ## openFPGALoader
+Linux環境ではGowin EDAの書き込みが安定しなかったため、openFPGALoaderを使用しました。  
+
+書き込みコマンド例  
 ```
 cd ofdm-fpga/src
 openFPGALoader -f ../impl/pnr/ofdm-fpga.fs
 ```
 
 # Docker
-GitHub Actions用のDockerコンテナです。pytestの実行を行います。
+GitHub Actions用のDockerコンテナです。pytestの実行を行います。  
+
 Build
 ```
 docker build -t sotsuken .
