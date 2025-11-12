@@ -17,15 +17,7 @@
 - data
   - 実験データを保存する場所
 - docs
-  - assetsと最終的な成果物の内容が異なっている部分が多いので注意
-  - final-slide
-    - [卒研審査会用スライド](https://github.com/yudai0804/sotsuken/blob/master/docs/final-slide/20250304%E5%B1%B1%E5%8F%A3%E9%9B%84%E5%A4%A7%E7%99%BA%E8%A1%A8_%E6%9C%AC%E7%95%AA%E7%94%A8.pdf)
-  - midterm
-    - 中間発表用スライド
-  - paper
-    - [論文](https://github.com/yudai0804/sotsuken/blob/master/docs/paper/%E5%8D%92%E8%AB%96.pdf)
-  - prepaper
-    - [予稿](https://github.com/yudai0804/sotsuken/blob/master/docs/prepaper/prepaper.pdf)
+- 各種ドキュメント
 - experiment
   - 実験用プログラム
 - ofdm-fpga
